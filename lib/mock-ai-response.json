@@ -1,27 +1,20 @@
 {
-  "script": "In this update, the team made three key changes to the web portal. First, they updated the navigation bar styling to improve visibility. The z-index was increased from 10 to 50 to prevent overlapping issues on mobile screens. Second, they refactored the button component to use consistent padding across all breakpoints. Finally, they added new documentation comments to help future developers understand the component structure.",
+  "script": "In this update, Desmond made two key changes to the event landing page. First, the location was updated from San Francisco, California to Singapore, NUS to reflect the new venue. Second, the call-to-action button text was modified to add urgency, changing from 'Get Your Tickets' to 'Get Your Tickets NOWWWW' to encourage immediate registration.",
   "changes": [
     {
-      "title": "Updated Navbar Styling",
-      "description": "Increased z-index to fix mobile overlap",
+      "title": "Updated Event Location",
+      "description": "Changed location from San Francisco to Singapore, NUS",
       "page_url": "/",
-      "selector": "nav",
-      "duration_seconds": 8
+      "selector": ".font-medium",
+      "duration_seconds": 7
     },
     {
-      "title": "Refactored Button Component",
-      "description": "Consistent padding across breakpoints",
+      "title": "Modified CTA Button Text",
+      "description": "Added urgency with NOWWWW to ticket button",
       "page_url": "/",
-      "selector": ".button",
+      "selector": ".bg-white.text-purple-600",
       "duration_seconds": 6
-    },
-    {
-      "title": "Added Documentation",
-      "description": "Component structure comments",
-      "page_url": "/",
-      "selector": "main",
-      "duration_seconds": 5
     }
   ],
-  "report_key": "PR_105_2026_01_17"
+  "report_key": "PR_3_2026_01_17"
 }
