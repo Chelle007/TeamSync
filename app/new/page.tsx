@@ -677,7 +677,7 @@ export default function NewProjectPage() {
                 <Button 
                   type="submit" 
                   className="flex-1" 
-                  disabled={isLoading || isSummarizing || (formData.githubRepo.trim() && repoStatus !== "verified")}
+                  disabled={isLoading || isSummarizing || (!!formData.githubRepo.trim() && repoStatus !== "verified")}
                 >
                   {isLoading || isSummarizing ? (
                     <>
