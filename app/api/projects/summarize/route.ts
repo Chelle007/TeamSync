@@ -98,14 +98,26 @@ export async function POST(request: Request) {
       messages: [
         {
           role: 'system',
-          content: 'You are a helpful assistant that processes project scopes. Generate two outputs: 1) A concise summary (2-3 sentences) focusing on key features, goals, and technical requirements. 2) A well-formatted project scope document that preserves important details from the original scope. Return your response as JSON with "summary" and "project_scope" fields.',
+          content: `You are a helpful assistant that processes project scopes. Generate two outputs:
+1) A concise summary (2-3 sentences) focusing on key features, goals, and technical requirements.
+2) A well-formatted project scope document with clear structure. Format the project scope with:
+   - Clear section headers (use ## for main sections like Overview, Key Features, Technical Requirements, Goals, Timeline)
+   - Bold sub-section headers using **Sub-section Name:** format for nested categories
+   - Bullet points (using - or *) for features and requirements under sub-sections
+   - Organized sections - start directly with content sections, do NOT include a "# Project Scope Document" header
+   - Use markdown formatting for better readability
+   - Preserve all important details from the original scope
+   - Make it professional and easy to read
+   - Each main section should start with ## followed by the section name
+
+Return your response as JSON with "summary" and "project_scope" fields. The project_scope should be formatted in markdown starting with section headers (##), not a document title.`,
         },
         {
           role: 'user',
-          content: `Please process the following project scope and generate both a summary and a formatted project scope:\n\n${textToSummarize}`,
+          content: `Please process the following project scope and generate both a summary and a well-formatted project scope document:\n\n${textToSummarize}`,
         },
       ],
-      max_tokens: 1000,
+      max_tokens: 1500,
       temperature: 0.7,
       response_format: { type: "json_object" },
     })

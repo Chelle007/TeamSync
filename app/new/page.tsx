@@ -346,8 +346,8 @@ export default function NewProjectPage() {
 
       toast.success("Project created successfully!")
       
-      // Redirect to generate page using the project ID from Supabase
-      router.push(`/${project.id}/generate`)
+      // Redirect to project page
+      router.push(`/${project.id}`)
     } catch (error) {
       console.error("Error:", error)
       toast.error(error instanceof Error ? error.message : "Failed to create project. Please try again.")
