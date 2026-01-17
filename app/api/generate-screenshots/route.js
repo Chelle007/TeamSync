@@ -5,13 +5,14 @@ import path from 'path';
 export async function POST(request) {
   let browser;
   try {
-    const { changes, reportKey } = await request.json();
+    const { changes, reportKey, liveUrl } = await request.json();
 
     if (!changes || !Array.isArray(changes)) {
       return new Response(JSON.stringify({ error: 'Changes array is required' }), { status: 400 });
     }
 
-    const baseUrl = process.env.DEPLOYED_SITE_URL;
+    // Use liveUrl from request, or fall back to env variable
+    const baseUrl = liveUrl || process.env.DEPLOYED_SITE_URL;
     const screenshotsDir = path.join(process.cwd(), 'public', 'screenshots', reportKey || 'default');
 
     // Create directory if it doesn't exist
@@ -56,6 +57,7 @@ export async function POST(request) {
       screenshots.push({
         index: i,
         title: change.title,
+        description: change.description || '',
         path: `/screenshots/${reportKey || 'default'}/${filename}`,
         filepath,
         duration: change.duration_seconds,

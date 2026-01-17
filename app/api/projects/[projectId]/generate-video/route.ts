@@ -133,8 +133,61 @@ export async function POST(
     const combineData = await combineResponse.json()
     console.log('✅ Final video created:', combineData.finalVideoPath)
 
-    // Step 5: Store update in database
-    console.log('💾 Step 5: Storing update in database...')
+    // Step 5: Generate screenshots for Google Doc
+    console.log('📸 Step 5: Generating screenshots...')
+    let screenshots: any[] = []
+    try {
+      const screenshotResponse = await fetch(`${baseUrl}/api/generate-screenshots`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          changes: analysisData.changes,
+          reportKey: reportKey,
+          liveUrl: project.live_url,
+        }),
+      })
+
+      if (screenshotResponse.ok) {
+        const screenshotData = await screenshotResponse.json()
+        screenshots = screenshotData.screenshots || []
+        console.log(`✅ Screenshots generated: ${screenshots.length}`)
+      } else {
+        console.warn('⚠️ Screenshot generation failed (non-critical)')
+      }
+    } catch (screenshotError) {
+      console.warn('⚠️ Screenshot generation failed (non-critical):', screenshotError instanceof Error ? screenshotError.message : screenshotError)
+    }
+
+    // Step 6: Generate PDF document with screenshots and captions
+    console.log('📄 Step 6: Generating PDF document...')
+    let docUrl: string | null = null
+    try {
+      const pdfResponse = await fetch(`${baseUrl}/api/generate-pdf-doc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reportKey: reportKey,
+          projectName: project.name,
+          script: analysisData.script,
+          changes: analysisData.changes,
+          screenshots: screenshots,
+        }),
+      })
+
+      if (pdfResponse.ok) {
+        const pdfData = await pdfResponse.json()
+        docUrl = pdfData.documentUrl
+        console.log('✅ PDF document generated:', docUrl)
+      } else {
+        const errorText = await pdfResponse.text()
+        console.warn('⚠️ PDF generation failed (non-critical):', errorText)
+      }
+    } catch (docError) {
+      console.warn('⚠️ PDF generation failed (non-critical):', docError instanceof Error ? docError.message : docError)
+    }
+
+    // Step 7: Store update in database
+    console.log('💾 Step 7: Storing update in database...')
     const { data: update, error: updateError } = await supabase
       .from('updates')
       .insert({
@@ -142,6 +195,7 @@ export async function POST(
         webhook_event_id: webhookEventId,
         title: webhookEvent.pr_title,
         video_url: combineData.finalVideoPath,
+        doc_url: docUrl,
         summary: analysisData.script,
         status: 'completed',
       })
@@ -155,11 +209,31 @@ export async function POST(
 
     console.log('✅ Update stored:', update.id)
 
+    // Step 8: Update project progress
+    console.log('📊 Step 8: Updating project progress...')
+    let newProgress = null
+    try {
+      const progressResponse = await fetch(`${baseUrl}/api/projects/${projectId}/analyze-progress`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (progressResponse.ok) {
+        const progressData = await progressResponse.json()
+        newProgress = progressData.progress
+        console.log(`✅ Progress updated: ${newProgress}%`)
+      } else {
+        console.warn('⚠️ Progress update failed (non-critical)')
+      }
+    } catch (progressError) {
+      console.warn('⚠️ Progress update failed (non-critical):', progressError instanceof Error ? progressError.message : progressError)
+    }
+
     // Update webhook event status to completed
     await updateWebhookEventStatus(webhookEventId, 'completed')
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2)
-    console.log(`🎉 Video generation completed in ${duration}s`)
+    console.log(`🎉 Video + Doc + Progress update completed in ${duration}s`)
 
     return NextResponse.json({
       success: true,
@@ -168,12 +242,15 @@ export async function POST(
         id: update.id,
         title: update.title,
         video_url: update.video_url,
+        doc_url: update.doc_url,
         summary: update.summary,
       },
+      progress: newProgress,
       assets: {
         audioPath: ttsData.audioPath,
         videoPath: recordData.videoPath,
         finalVideoPath: combineData.finalVideoPath,
+        pdfDocUrl: docUrl,
       },
       timing: {
         totalDuration: `${duration}s`,
