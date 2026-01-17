@@ -18,23 +18,45 @@ This system automatically generates narrated screen recording videos from code c
 ## 🔄 The 4-Step Pipeline
 
 ### Step 1: 📝 AI Content Generation
-**What:** Analyzes your changes and creates a script + visual plan  
-**Input:** Project commits, documents, change descriptions  
+**What:** Analyzes your GitHub changes and creates a script + visual plan  
+**Input:** GitHub webhook payload (PR data, commits, code diff) + project context  
 **Output:** 
 - Narration script (what the AI voice will say)
 - List of visual changes to show
 - Timing for each section
 
+**Real Example Input:**
 ```json
 {
-  "script": "In this update, Desmond made two changes...",
+  "projectId": "PR_2",
+  "webhookPayload": {
+    "high_level": {
+      "title": "Update page.js",
+      "body": "Updated homepage content"
+    },
+    "raw_diff": "- This is the Biggest Summit 2026\n+ This is the place for Founders to mingle"
+  }
+}
+```
+
+**AI Analysis Output:**
+```json
+{
+  "script": "In this update, the homepage messaging was refined. The main title was removed for a cleaner look, and the tagline was updated to better target founders and entrepreneurs.",
   "changes": [
     {
-      "title": "Changed Footer Color",
-      "description": "Updated footer from pink to neon green", 
+      "title": "Updated Homepage Title",
+      "description": "Removed main summit title text", 
       "page_url": "/",
-      "selector": "footer",
+      "selector": ".text-6xl",
       "duration_seconds": 6
+    },
+    {
+      "title": "Refined Tagline",
+      "description": "Changed messaging to focus on founders",
+      "page_url": "/", 
+      "selector": ".text-2xl",
+      "duration_seconds": 7
     }
   ]
 }
@@ -94,11 +116,12 @@ public/
 
 ### API Endpoints
 ```
-POST /api/generate-full-video     # Main orchestrator
-POST /api/generate-tts           # Text-to-speech
-POST /api/record-screen          # Screen recording  
-POST /api/combine-video-audio    # Video combination
-POST /api/projects/summarize     # AI analysis (Phase 6)
+POST /api/generate-full-video        # Main orchestrator
+POST /api/projects/summarize         # AI analysis (GitHub webhook processor)
+POST /api/generate-tts              # Text-to-speech
+POST /api/record-screen             # Screen recording  
+POST /api/combine-video-audio       # Video combination
+POST /api/test-webhook-to-video     # Test webhook flow
 ```
 
 ### Dependencies
@@ -234,21 +257,23 @@ const fps = 24; // Frames per second
 }
 ```
 
-## 🚀 Current Status: Phase 5
+## 🚀 Current Status: Phase 5.5 - AI Integration Complete!
 
 **✅ What Works:**
 - Complete end-to-end pipeline
-- Mock AI analysis (uses predefined script)
-- Real TTS generation
+- **Real AI analysis** of GitHub webhook data
+- **Smart diff parsing** and change detection
+- Real TTS generation with AI-generated scripts
 - Real screen recording with Puppeteer
 - Smart video/audio synchronization
 - Web and CLI testing interfaces
+- **GitHub webhook simulation** for testing
 
 **🔄 Phase 6 (Next):**
-- Replace mock AI with real OpenAI analysis
-- GitHub OAuth integration
+- Real GitHub OAuth integration
 - Database storage for projects
 - S3/cloud storage for videos
+- Production webhook endpoints
 - Error handling and retries
 - Production deployment
 

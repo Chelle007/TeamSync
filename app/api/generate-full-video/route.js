@@ -15,19 +15,34 @@ export async function POST(request) {
     // Format: {projectId}_{YYYY_MM_DD}
     const reportKey = `${projectId}_${new Date().toISOString().split('T')[0].replace(/-/g, '_')}`;
 
-    // Step 1: Call AI Summarizer (using mock for now)
+    // Step 1: Call AI Summarizer
     console.log('📝 Step 1: Generating AI summary...');
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
     
-    // For Phase 5, we'll use the mock response directly
-    // In Phase 6, this will call the real AI summarizer with commits/documents
-    const mockResponse = require('@/lib/mock-ai-response.json');
-    const summaryData = {
-      ...mockResponse,
-      report_key: reportKey // Override with our generated key
-    };
+    const summaryResponse = await fetch(`${baseUrl}/api/projects/summarize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectId,
+        webhookPayload: null, // Will be populated in Phase 6 with real webhook data
+        commits: commits || [],
+        documents: documents || []
+      }),
+    });
+
+    if (!summaryResponse.ok) {
+      const errorText = await summaryResponse.text();
+      throw new Error(`AI Summarizer failed: ${summaryResponse.statusText} - ${errorText}`);
+    }
+
+    const summaryData = await summaryResponse.json();
     
-    console.log('✅ AI Summary generated (using mock data)');
+    // Override report_key with our generated one for consistency
+    summaryData.report_key = reportKey;
+    
+    console.log('✅ AI Summary generated');
+    console.log(`📝 Script: ${summaryData.script.substring(0, 100)}...`);
+    console.log(`🎬 Changes: ${summaryData.changes.length}`);
 
     // Step 2: Generate TTS Audio
     console.log('🎵 Step 2: Generating TTS audio...');

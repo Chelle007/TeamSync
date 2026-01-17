@@ -7,7 +7,9 @@ import { Textarea } from '@/components/ui/textarea';
 
 export default function TestPipelinePage() {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isTestingAI, setIsTestingAI] = useState(false);
   const [result, setResult] = useState(null);
+  const [aiResult, setAiResult] = useState(null);
   const [error, setError] = useState(null);
 
   const testPayload = {
@@ -36,6 +38,50 @@ export default function TestPipelinePage() {
         content: 'Event website with modern styling'
       }
     ]
+  };
+
+  const testAISummarizer = async () => {
+    setIsTestingAI(true);
+    setError(null);
+    setAiResult(null);
+
+    try {
+      const webhookPayload = {
+        "event_info": {
+          "repository": "desraymondz/hnr-example-project",
+          "pr_number": 2,
+          "merged_by": "desraymondz",
+          "timestamp": "2026-01-17T05:48:52Z"
+        },
+        "high_level": {
+          "title": "Update page.js",
+          "body": "Updated homepage content and messaging"
+        },
+        "raw_commits": ["Update page.js"],
+        "raw_diff": "diff --git a/app/page.js b/app/page.js\nindex eab954e..68adfb1 100644\n--- a/app/page.js\n+++ b/app/page.js\n@@ -62,13 +62,12 @@ export default function Home() {\n               </span>\n               <span className=\"block mt-2\">Innovation</span>\n               <span className=\"block text-4xl sm:text-5xl lg:text-6xl mt-4 text-cyan-100\">\n-                This is the Biggest Summit 2026\n               </span>\n             </h1>\n \n             {/* Tagline */}\n             <p className=\"text-xl sm:text-2xl text-white/90 max-w-3xl mx-auto leading-relaxed animate-fade-in-delay\">\n-              Where visionaries connect, ideas flourish, and the future of technology unfolds.\n+              This is the palce for Founders to mingle\n             </p>\n \n             {/* Event Info */}\n"
+      };
+
+      const response = await fetch('/api/projects/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: 'PR_2',
+          webhookPayload: webhookPayload
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'AI Summarizer failed');
+      }
+
+      const data = await response.json();
+      setAiResult(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsTestingAI(false);
+    }
   };
 
   const runPipeline = async () => {
@@ -70,6 +116,38 @@ export default function TestPipelinePage() {
         <h1 className="text-3xl font-bold mb-2">Video Generation Pipeline Test</h1>
         <p className="text-gray-600">Test the complete AI → TTS → Screen Recording → Video Combination pipeline</p>
       </div>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>AI Summarizer Test</CardTitle>
+          <CardDescription>Test the AI with real GitHub webhook data</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button 
+            onClick={testAISummarizer} 
+            disabled={isTestingAI}
+            className="mb-4"
+            variant="outline"
+          >
+            {isTestingAI ? 'Testing AI...' : 'Test AI Summarizer Only'}
+          </Button>
+          
+          {aiResult && (
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+              <h4 className="font-semibold mb-2">AI Analysis Result:</h4>
+              <div className="text-sm space-y-2">
+                <div><strong>Script:</strong> {aiResult.script}</div>
+                <div><strong>Changes:</strong> {aiResult.changes.length}</div>
+                {aiResult.changes.map((change, i) => (
+                  <div key={i} className="ml-4 text-gray-600">
+                    • {change.title} ({change.duration_seconds}s) - {change.selector}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="mb-6">
         <CardHeader>
