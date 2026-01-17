@@ -71,7 +71,11 @@ function UserProfileDropdown() {
       const supabase = createClient()
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (authUser) {
-        const userName = authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email?.split("@")[0] || "User"
+        // Prioritize custom_name if it exists and was customized
+        const metadata = authUser.user_metadata || {}
+        const userName = (metadata.name_customized && metadata.custom_name)
+          ? metadata.custom_name
+          : (metadata.full_name || metadata.name || authUser.email?.split("@")[0] || "User")
         setUser({
           email: authUser.email,
           name: userName
@@ -135,7 +139,9 @@ function UserProfileDropdown() {
           data: {
             ...authUser.user_metadata,
             full_name: editedName.trim(),
-            name: editedName.trim()
+            name: editedName.trim(),
+            name_customized: true, // Flag to indicate this is a custom name that should be preserved
+            custom_name: editedName.trim() // Store custom name separately
           }
         })
 

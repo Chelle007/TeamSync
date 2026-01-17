@@ -37,6 +37,12 @@ function LoginForm() {
     if (roleParam === "reviewer" || roleParam === "developer") {
       setRole(roleParam)
     }
+
+    // Check for error parameter from auth callback
+    const errorParam = searchParams.get("error")
+    if (errorParam === "auth_failed") {
+      toast.error("Authentication failed. Please try again.")
+    }
   }, [searchParams])
 
   const handleGitHubSignIn = async () => {
@@ -45,17 +51,52 @@ function LoginForm() {
     try {
       const supabase = createClient()
 
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error, data } = await supabase.auth.signInWithOAuth({
         provider: "github",
         options: {
           redirectTo: `${window.location.origin}/auth/callback?role=${role}`,
         },
       })
 
-      if (error) throw error
+      if (error) {
+        // Parse error message - could be a string or JSON object
+        let errorMessage = error.message || "Authentication failed"
+        
+        // Try to parse if it's a JSON string
+        try {
+          const parsedError = typeof error.message === 'string' ? JSON.parse(error.message) : error.message
+          if (parsedError && typeof parsedError === 'object') {
+            errorMessage = parsedError.msg || parsedError.message || errorMessage
+          }
+        } catch {
+          // Not JSON, use the message as is
+        }
+
+        // Check for specific error about provider not being enabled
+        if (
+          errorMessage.includes("not enabled") || 
+          errorMessage.includes("validation_failed") ||
+          errorMessage.includes("Unsupported provider")
+        ) {
+          toast.error(
+            "GitHub OAuth is not enabled in Supabase. Please enable it in your Supabase dashboard under Authentication > Providers > GitHub.",
+            { duration: 8000 }
+          )
+        } else {
+          toast.error(`GitHub sign-in failed: ${errorMessage}`, { duration: 5000 })
+        }
+        setIsLoading(null)
+        return
+      }
+
+      // If no error, the redirect should happen automatically
+      // But if data.url exists, it means we need to redirect manually
+      if (data?.url) {
+        window.location.href = data.url
+      }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Authentication failed"
-      toast.error(errorMessage)
+      toast.error(`GitHub sign-in error: ${errorMessage}`, { duration: 5000 })
       setIsLoading(null)
     }
   }
@@ -66,17 +107,52 @@ function LoginForm() {
     try {
       const supabase = createClient()
 
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error, data } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: `${window.location.origin}/auth/callback?role=${role}`,
         },
       })
 
-      if (error) throw error
+      if (error) {
+        // Parse error message - could be a string or JSON object
+        let errorMessage = error.message || "Authentication failed"
+        
+        // Try to parse if it's a JSON string
+        try {
+          const parsedError = typeof error.message === 'string' ? JSON.parse(error.message) : error.message
+          if (parsedError && typeof parsedError === 'object') {
+            errorMessage = parsedError.msg || parsedError.message || errorMessage
+          }
+        } catch {
+          // Not JSON, use the message as is
+        }
+
+        // Check for specific error about provider not being enabled
+        if (
+          errorMessage.includes("not enabled") || 
+          errorMessage.includes("validation_failed") ||
+          errorMessage.includes("Unsupported provider")
+        ) {
+          toast.error(
+            "Google OAuth is not enabled in Supabase. Please enable it in your Supabase dashboard under Authentication > Providers > Google. See SETUP_GOOGLE_OAUTH.md for detailed instructions.",
+            { duration: 8000 }
+          )
+        } else {
+          toast.error(`Google sign-in failed: ${errorMessage}`, { duration: 5000 })
+        }
+        setIsLoading(null)
+        return
+      }
+
+      // If no error, the redirect should happen automatically
+      // But if data.url exists, it means we need to redirect manually
+      if (data?.url) {
+        window.location.href = data.url
+      }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Authentication failed"
-      toast.error(errorMessage)
+      toast.error(`Google sign-in error: ${errorMessage}`, { duration: 5000 })
       setIsLoading(null)
     }
   }

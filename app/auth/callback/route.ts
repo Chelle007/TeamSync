@@ -14,15 +14,37 @@ export async function GET(request: Request) {
       // Get the current user and update their metadata with the role
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        // Preserve existing metadata (like name from Google OAuth) and add/update role
+        // After OAuth login, user.user_metadata is merged with OAuth provider's data
+        // Supabase merges metadata, so custom_name should persist if it exists
         const currentMetadata = user.user_metadata || {}
+        
+        // Check if user has a custom name that should be preserved
+        const hasCustomName = currentMetadata.name_customized === true
+        const customName = currentMetadata.custom_name
+        
+        // Determine which name to use: custom name takes priority over OAuth name
+        let nameToUse: string
+        if (hasCustomName && customName) {
+          // User has customized their name, preserve it
+          nameToUse = customName
+        } else {
+          // Use OAuth provider's name (first login or name not customized)
+          nameToUse = currentMetadata.name || currentMetadata.full_name || user.email?.split("@")[0] || "User"
+        }
+        
+        // Update metadata, preserving custom name if it exists
         await supabase.auth.updateUser({
           data: { 
-            ...currentMetadata,
+            ...currentMetadata, // Preserve all existing metadata
             role: role,
-            // Preserve Google name if available
-            name: currentMetadata.name || currentMetadata.full_name || currentMetadata.name,
-            full_name: currentMetadata.full_name || currentMetadata.name || currentMetadata.full_name
+            // Set name fields
+            name: nameToUse,
+            full_name: nameToUse,
+            // Preserve customization flag and custom name if they exist
+            ...(hasCustomName && customName ? {
+              name_customized: true,
+              custom_name: customName
+            } : {})
           }
         })
       }
