@@ -284,8 +284,15 @@ export async function POST(request: Request) {
 
     if (pdfUrl) {
       console.log('✅ PDF uploaded to Supabase:', pdfUrl);
-      // Clean up local file after successful upload
+      // Clean up local files after successful upload
       deleteLocalFile(pdfPath);
+      
+      // Also clean up screenshots folder
+      const screenshotsDir = path.join(process.cwd(), 'public', 'screenshots', reportKey);
+      if (fs.existsSync(screenshotsDir)) {
+        fs.rmSync(screenshotsDir, { recursive: true, force: true });
+        console.log('🗑️ Deleted screenshots directory:', screenshotsDir);
+      }
     } else {
       console.warn('⚠️ Supabase upload failed, keeping local file');
     }

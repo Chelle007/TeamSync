@@ -59,11 +59,7 @@ export async function POST(request) {
       console.log(`☁️ Uploading screenshot ${filename} to Supabase...`);
       const screenshotUrl = await uploadScreenshot(filepath, reportKey || 'default', filename);
 
-      // Clean up local file after successful upload
-      if (screenshotUrl) {
-        const { deleteLocalFile } = await import('@/lib/storage');
-        deleteLocalFile(filepath);
-      }
+      // NOTE: Don't delete local files here - they may be needed by PDF generation
 
       screenshots.push({
         index: i,

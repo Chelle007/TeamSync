@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
-import { uploadAudio, deleteLocalFile } from '@/lib/storage';
+import { uploadAudio } from '@/lib/storage';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -42,8 +42,7 @@ export async function POST(request) {
 
     if (audioUrl) {
       console.log('✅ Audio uploaded to Supabase:', audioUrl);
-      // Clean up local file after successful upload
-      deleteLocalFile(filepath);
+      // NOTE: Don't delete local file here - it's still needed by combine-video-audio
     } else {
       console.warn('⚠️ Supabase upload failed, keeping local file');
     }

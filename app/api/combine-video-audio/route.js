@@ -122,10 +122,18 @@ export async function POST(request) {
 
         if (videoUrl) {
             console.log('✅ Video uploaded to Supabase:', videoUrl);
-            // Clean up local files after successful upload
-            deleteLocalFile(outputPath);
-            deleteLocalFile(videoFilePath); // Raw video
-            deleteLocalFile(audioFilePath); // Audio file (if still exists)
+            // Clean up ALL local temp files after successful upload
+            console.log('🗑️ Cleaning up local temp files...');
+            deleteLocalFile(outputPath);      // Final combined video
+            deleteLocalFile(videoFilePath);   // Raw video
+            deleteLocalFile(audioFilePath);   // Audio file
+            
+            // Also clean up the frames directory
+            const framesDir = path.join(process.cwd(), 'public', 'frames', reportKey || '');
+            if (fs.existsSync(framesDir)) {
+                fs.rmSync(framesDir, { recursive: true, force: true });
+                console.log('🗑️ Deleted frames directory:', framesDir);
+            }
         } else {
             console.warn('⚠️ Supabase upload failed, keeping local files');
         }
