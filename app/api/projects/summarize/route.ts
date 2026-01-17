@@ -18,10 +18,10 @@ export async function POST(request: Request) {
     }
 
     const formData = await request.formData()
-    const projectScope = formData.get('projectScope') as string | null
+    const projectScopeInput = formData.get('projectScope') as string | null
     const pdfFile = formData.get('pdfFile') as File | null
 
-    if (!projectScope && !pdfFile) {
+    if (!projectScopeInput && !pdfFile) {
       return NextResponse.json({ error: 'Project scope or PDF file is required' }, { status: 400 })
     }
 
@@ -84,35 +84,66 @@ export async function POST(request: Request) {
     }
 
     // Use text input
-    if (projectScope) {
-      textToSummarize = projectScope.trim()
+    if (projectScopeInput) {
+      textToSummarize = projectScopeInput.trim()
     }
 
     if (!textToSummarize) {
       return NextResponse.json({ error: 'No text to summarize' }, { status: 400 })
     }
 
-    // Summarize using OpenAI
+    // Generate both summary and project scope using OpenAI
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini', // or 'gpt-3.5-turbo' for faster/cheaper
+      model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: 'You are a helpful assistant that summarizes project scopes into concise, clear summaries. Focus on key features, goals, and technical requirements. Keep the summary to 2-3 sentences.',
+          content: 'You are a helpful assistant that processes project scopes. Generate two outputs: 1) A concise summary (2-3 sentences) focusing on key features, goals, and technical requirements. 2) A well-formatted project scope document that preserves important details from the original scope. Return your response as JSON with "summary" and "project_scope" fields.',
         },
         {
           role: 'user',
-          content: `Please summarize the following project scope:\n\n${textToSummarize}`,
+          content: `Please process the following project scope and generate both a summary and a formatted project scope:\n\n${textToSummarize}`,
         },
       ],
-      max_tokens: 200,
+      max_tokens: 1000,
       temperature: 0.7,
+      response_format: { type: "json_object" },
     })
 
-    const summary = completion.choices[0]?.message?.content || ''
+    let summary = ''
+    let formattedProjectScope = textToSummarize // Default to original text
+
+    try {
+      const responseContent = completion.choices[0]?.message?.content || ''
+      const parsed = JSON.parse(responseContent)
+      summary = parsed.summary || ''
+      formattedProjectScope = parsed.project_scope || textToSummarize
+    } catch (parseError) {
+      // Fallback: try to extract summary from response
+      const responseText = completion.choices[0]?.message?.content || ''
+      // If JSON parsing fails, try to get just summary
+      const summaryCompletion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a helpful assistant that summarizes project scopes into concise, clear summaries. Focus on key features, goals, and technical requirements. Keep the summary to 2-3 sentences.',
+          },
+          {
+            role: 'user',
+            content: `Please summarize the following project scope:\n\n${textToSummarize}`,
+          },
+        ],
+        max_tokens: 200,
+        temperature: 0.7,
+      })
+      summary = summaryCompletion.choices[0]?.message?.content || ''
+      formattedProjectScope = textToSummarize
+    }
 
     return NextResponse.json({
       summary,
+      project_scope: formattedProjectScope,
       pdfPath,
     })
   } catch (error) {
