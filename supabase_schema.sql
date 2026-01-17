@@ -407,3 +407,39 @@ CREATE TRIGGER update_projects_updated_at
     BEFORE UPDATE ON public.projects
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+
+-- Function to automatically create a profile when a user signs up
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_role TEXT;
+BEGIN
+    -- Determine role based on provider
+    -- GitHub = developer, Google/Email = reviewer
+    IF NEW.raw_app_meta_data->>'provider' = 'github' THEN
+        v_role := 'developer';
+    ELSE
+        v_role := 'reviewer';
+    END IF;
+    
+    -- Insert into profiles table
+    INSERT INTO public.profiles (id, email, role, full_name, avatar_url)
+    VALUES (
+        NEW.id,
+        NEW.email,
+        v_role,
+        COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', NEW.email),
+        NEW.raw_user_meta_data->>'avatar_url'
+    )
+    ON CONFLICT (id) DO NOTHING;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to call the function when a new user is created
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_new_user();
