@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -18,7 +18,10 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
-  Lock
+  Lock,
+  Upload,
+  FileText,
+  X
 } from "lucide-react"
 import { toast } from "sonner"
 import { parseGitHubUrl, verifyGitHubRepoAccess, type GitHubRepoData } from "@/lib/github"
@@ -29,17 +32,33 @@ type RepoVerificationStatus = "idle" | "verifying" | "verified" | "error"
 export default function NewProjectPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [isSummarizing, setIsSummarizing] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
-    description: "",
+    projectScope: "",
     projectUrl: "",
     githubRepo: "",
   })
+  const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const [scopeInputType, setScopeInputType] = useState<"text" | "pdf">("text")
   
   // GitHub verification state
   const [repoStatus, setRepoStatus] = useState<RepoVerificationStatus>("idle")
   const [repoError, setRepoError] = useState<string>("")
   const [repoData, setRepoData] = useState<GitHubRepoData | null>(null)
+
+  // Check if we have a pending verification after OAuth redirect
+  useEffect(() => {
+    const pendingRepo = sessionStorage.getItem("pending_verify_repo")
+    if (pendingRepo && formData.githubRepo !== pendingRepo) {
+      setFormData(prev => ({ ...prev, githubRepo: pendingRepo }))
+      sessionStorage.removeItem("pending_verify_repo")
+      // Auto-trigger verification after a short delay
+      setTimeout(() => {
+        verifyRepo()
+      }, 500)
+    }
+  }, [])
 
   const verifyRepo = async () => {
     if (!formData.githubRepo.trim()) {
@@ -72,8 +91,99 @@ export default function NewProjectPage() {
         return
       }
 
-      const result = await verifyGitHubRepoAccess(formData.githubRepo, session.provider_token)
+      // First, try to verify with current token
+      let result = await verifyGitHubRepoAccess(formData.githubRepo, session.provider_token)
       
+      // If verification failed, check if it might be a private repo that needs repo scope
+      if (!result.success) {
+        // The error could be:
+        // 1. Repo truly doesn't exist (404)
+        // 2. Private repo we can't access without repo scope (404)
+        // 3. We don't have access (403)
+        
+        // Check if we can access the repo endpoint at all
+        const repoCheckResponse = await fetch(
+          `https://api.github.com/repos/${parsed.owner}/${parsed.repo}`,
+          {
+            headers: {
+              Authorization: `Bearer ${session.provider_token}`,
+              Accept: "application/vnd.github.v3+json",
+            },
+          }
+        )
+
+        // If we can access the repo info, check if it's private
+        if (repoCheckResponse.ok) {
+          const repoData = await repoCheckResponse.json()
+          if (repoData.private) {
+            // It's a private repo - we need repo scope to fully access it
+            // Store the repo URL in sessionStorage for after OAuth redirect
+            sessionStorage.setItem("pending_verify_repo", formData.githubRepo)
+            
+            // Request additional scopes via OAuth
+            const { error: oauthError } = await supabase.auth.signInWithOAuth({
+              provider: "github",
+              options: {
+                redirectTo: `${window.location.origin}/auth/callback?role=developer&verify_repo=true`,
+                queryParams: {
+                  scope: "repo read:user user:email",
+                },
+              },
+            })
+
+            if (oauthError) {
+              setRepoStatus("error")
+              setRepoError("Failed to request repository access. Please try again.")
+              setRepoData(null)
+            }
+            // OAuth will redirect, so we don't need to update status here
+            return
+          } else {
+            // Repo exists and is public, but verification still failed
+            // This shouldn't happen, but show the error
+            setRepoStatus("error")
+            setRepoError(result.error || "Failed to verify repository")
+            setRepoData(null)
+            return
+          }
+        } else if (repoCheckResponse.status === 404) {
+          // Repo endpoint returns 404 - could be:
+          // 1. Repo truly doesn't exist
+          // 2. Private repo we have no access to (GitHub returns 404 for private repos without repo scope)
+          
+          // For private repos, GitHub returns 404 when you don't have repo scope
+          // So we should offer to request repo scope as a possibility
+          // Store the repo URL in sessionStorage for after OAuth redirect
+          sessionStorage.setItem("pending_verify_repo", formData.githubRepo)
+          
+          // Request additional scopes via OAuth
+          const { error: oauthError } = await supabase.auth.signInWithOAuth({
+            provider: "github",
+            options: {
+              redirectTo: `${window.location.origin}/auth/callback?role=developer&verify_repo=true`,
+              queryParams: {
+                scope: "repo read:user user:email",
+              },
+            },
+          })
+
+          if (oauthError) {
+            setRepoStatus("error")
+            setRepoError("Failed to request repository access. Please try again.")
+            setRepoData(null)
+          }
+          // OAuth will redirect, so we don't need to update status here
+          return
+        } else {
+          // Some other error (401, 403, etc.)
+          setRepoStatus("error")
+          setRepoError(result.error || "Failed to verify repository")
+          setRepoData(null)
+          return
+        }
+      }
+      
+      // If verification succeeded
       if (result.success && result.repoData) {
         setRepoStatus("verified")
         setRepoData(result.repoData)
@@ -87,11 +197,11 @@ export default function NewProjectPage() {
           }))
         }
         
-        // Auto-fill description if empty
-        if (!formData.description.trim() && result.repoData.description) {
+        // Auto-fill project scope if empty (from GitHub repo description)
+        if (!formData.projectScope.trim() && result.repoData.description) {
           setFormData(prev => ({
             ...prev,
-            description: result.repoData!.description || ""
+            projectScope: result.repoData!.description || ""
           }))
         }
       } else {
@@ -99,11 +209,33 @@ export default function NewProjectPage() {
         setRepoError(result.error || "Failed to verify repository")
         setRepoData(null)
       }
-    } catch {
+    } catch (error) {
+      console.error("Verify error:", error)
       setRepoStatus("error")
       setRepoError("Failed to verify repository. Please try again.")
       setRepoData(null)
     }
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.type !== 'application/pdf') {
+        toast.error('Please upload a PDF file')
+        return
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('PDF file size must be less than 10MB')
+        return
+      }
+      setPdfFile(file)
+      setScopeInputType('pdf')
+    }
+  }
+
+  const handleRemovePdf = () => {
+    setPdfFile(null)
+    setScopeInputType('text')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -120,25 +252,104 @@ export default function NewProjectPage() {
       return
     }
 
+    // Check if project scope is provided
+    if (scopeInputType === 'text' && !formData.projectScope.trim() && !pdfFile) {
+      toast.error("Please provide a project scope (text or PDF)")
+      return
+    }
+
     setIsLoading(true)
+    setIsSummarizing(true)
 
     try {
-      // TODO: Save to Supabase
-      // const supabase = createClient()
-      // const { data, error } = await supabase.from('projects').insert({...})
+      const supabase = createClient()
       
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) {
+        toast.error("Please sign in to create a project")
+        router.push("/login")
+        return
+      }
+
+      // Generate summary using OpenAI
+      let summary = ''
+      let pdfPath: string | null = null
+
+      if (scopeInputType === 'pdf' && pdfFile) {
+        // Upload PDF and get summary
+        const summarizeFormData = new FormData()
+        summarizeFormData.append('pdfFile', pdfFile)
+
+        const summarizeResponse = await fetch('/api/projects/summarize', {
+          method: 'POST',
+          body: summarizeFormData,
+        })
+
+        if (!summarizeResponse.ok) {
+          const error = await summarizeResponse.json()
+          throw new Error(error.error || 'Failed to generate summary')
+        }
+
+        const summarizeData = await summarizeResponse.json()
+        summary = summarizeData.summary
+        pdfPath = summarizeData.pdfPath
+      } else if (formData.projectScope.trim()) {
+        // Get summary from text
+        const summarizeFormData = new FormData()
+        summarizeFormData.append('projectScope', formData.projectScope.trim())
+
+        const summarizeResponse = await fetch('/api/projects/summarize', {
+          method: 'POST',
+          body: summarizeFormData,
+        })
+
+        if (!summarizeResponse.ok) {
+          const error = await summarizeResponse.json()
+          throw new Error(error.error || 'Failed to generate summary')
+        }
+
+        const summarizeData = await summarizeResponse.json()
+        summary = summarizeData.summary
+      }
+
+      setIsSummarizing(false)
+
+      // Create project using database function (handles both project and project_user in one transaction)
+      const { data: newProject, error: projectError } = await supabase
+        .rpc('create_project_with_owner', {
+          p_name: formData.name.trim(),
+          p_github_url: formData.githubRepo.trim() || null,
+          p_live_url: formData.projectUrl.trim() || null,
+          p_summary: summary || null,
+          p_status: 'active',
+          p_progress: 0,
+        })
+
+      if (projectError) {
+        console.error("Error creating project:", projectError)
+        toast.error(projectError.message || "Failed to create project. Please try again.")
+        return
+      }
+
+      // The function returns an array, get the first result
+      const project = Array.isArray(newProject) ? newProject[0] : newProject
+      
+      if (!project || !project.id) {
+        toast.error("Failed to create project. Please try again.")
+        return
+      }
 
       toast.success("Project created successfully!")
       
-      // Generate a slug from the project name
-      const slug = formData.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")
-      router.push(`/${slug}/generate`)
-    } catch {
-      toast.error("Failed to create project. Please try again.")
+      // Redirect to generate page using the project ID from Supabase
+      router.push(`/${project.id}/generate`)
+    } catch (error) {
+      console.error("Error:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to create project. Please try again.")
     } finally {
       setIsLoading(false)
+      setIsSummarizing(false)
     }
   }
 
@@ -279,18 +490,101 @@ export default function NewProjectPage() {
                 />
               </div>
 
-              {/* Description */}
+              {/* Project Scope */}
               <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="description">
-                  Description
+                <label className="text-sm font-medium">
+                  Project Scope
                 </label>
-                <Textarea
-                  id="description"
-                  placeholder="Brief description of the project..."
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="min-h-[100px]"
-                />
+                
+                {/* Input Type Toggle */}
+                <div className="flex gap-2 mb-2">
+                  <Button
+                    type="button"
+                    variant={scopeInputType === "text" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setScopeInputType("text")
+                      setPdfFile(null)
+                    }}
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Paste Text
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={scopeInputType === "pdf" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setScopeInputType("pdf")}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload PDF
+                  </Button>
+                </div>
+
+                {/* Text Input */}
+                {scopeInputType === "text" && (
+                  <Textarea
+                    id="projectScope"
+                    placeholder="Paste your project scope here... (e.g., features, requirements, goals, etc.)"
+                    value={formData.projectScope}
+                    onChange={(e) => setFormData({ ...formData, projectScope: e.target.value })}
+                    className="min-h-[150px]"
+                  />
+                )}
+
+                {/* PDF Upload */}
+                {scopeInputType === "pdf" && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="pdf-upload"
+                        className="flex-1 cursor-pointer"
+                      >
+                        <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors">
+                          {pdfFile ? (
+                            <div className="space-y-2">
+                              <FileText className="h-8 w-8 mx-auto text-primary" />
+                              <p className="text-sm font-medium">{pdfFile.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {(pdfFile.size / 1024 / 1024).toFixed(2)} MB
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
+                              <p className="text-sm font-medium">
+                                Click to upload PDF
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Max 10MB
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </label>
+                      <input
+                        id="pdf-upload"
+                        type="file"
+                        accept="application/pdf"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+                      {pdfFile && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={handleRemovePdf}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      AI will extract and summarize the project scope from your PDF
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Project URL */}
@@ -322,12 +616,12 @@ export default function NewProjectPage() {
                 <Button 
                   type="submit" 
                   className="flex-1" 
-                  disabled={isLoading || (formData.githubRepo.trim() && repoStatus !== "verified")}
+                  disabled={isLoading || isSummarizing || (formData.githubRepo.trim() && repoStatus !== "verified")}
                 >
-                  {isLoading ? (
+                  {isLoading || isSummarizing ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Creating...
+                      {isSummarizing ? "Generating summary..." : "Creating..."}
                     </>
                   ) : (
                     <>

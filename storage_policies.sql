@@ -1,0 +1,60 @@
+-- Storage RLS Policies for TeamSync
+-- Run this SQL in Supabase Dashboard -> SQL Editor
+
+-- Storage policies for project-scopes bucket
+DROP POLICY IF EXISTS "Users can upload their own PDFs" ON storage.objects;
+CREATE POLICY "Users can upload their own PDFs"
+ON storage.objects FOR INSERT
+WITH CHECK (
+  bucket_id = 'project-scopes' AND
+  (storage.foldername(name))[1] = auth.uid()::text
+);
+
+DROP POLICY IF EXISTS "Users can view their own PDFs" ON storage.objects;
+CREATE POLICY "Users can view their own PDFs"
+ON storage.objects FOR SELECT
+USING (
+  bucket_id = 'project-scopes' AND
+  (storage.foldername(name))[1] = auth.uid()::text
+);
+
+-- Storage policies for project-documents bucket
+-- Helper function to check project access (avoids recursion)
+CREATE OR REPLACE FUNCTION user_has_project_access_for_storage(p_project_id TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM public.project_user
+        WHERE project_id::text = p_project_id
+        AND user_id = auth.uid()
+    );
+END;
+$$;
+
+DROP POLICY IF EXISTS "Users can upload documents to their projects" ON storage.objects;
+CREATE POLICY "Users can upload documents to their projects"
+ON storage.objects FOR INSERT
+WITH CHECK (
+  bucket_id = 'project-documents' AND
+  user_has_project_access_for_storage((storage.foldername(name))[1])
+);
+
+DROP POLICY IF EXISTS "Users can view documents for their projects" ON storage.objects;
+CREATE POLICY "Users can view documents for their projects"
+ON storage.objects FOR SELECT
+USING (
+  bucket_id = 'project-documents' AND
+  user_has_project_access_for_storage((storage.foldername(name))[1])
+);
+
+DROP POLICY IF EXISTS "Users can delete documents from their projects" ON storage.objects;
+CREATE POLICY "Users can delete documents from their projects"
+ON storage.objects FOR DELETE
+USING (
+  bucket_id = 'project-documents' AND
+  user_has_project_access_for_storage((storage.foldername(name))[1])
+);

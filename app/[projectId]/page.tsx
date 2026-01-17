@@ -13,16 +13,19 @@ import { ChatInterface } from "@/components/chat-interface"
 import { createClient } from "@/utils/supabase/client"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { 
-  Zap, 
-  Video, 
-  MessageSquare, 
+import {
+  Zap,
+  Video,
+  MessageSquare,
   Bell,
   User,
   LogOut,
   Edit2,
   Check,
   X,
+  LayoutGrid,
+  Settings,
+  BarChart3,
 } from "lucide-react"
 
 // Mock data for demo
@@ -55,6 +58,52 @@ const mockUpdates = [
     status: "processing" as const,
   },
 ]
+
+const mockProjectDetails: Record<
+  string,
+  {
+    name: string
+    description: string
+    progress: number
+    status: "active" | "completed" | "paused"
+    overview: string
+    timeline: string
+    nextMilestone: string
+  }
+> = {
+  "batam-spa": {
+    name: "Batam1SPA Website",
+    description: "Wellness and spa booking platform",
+    progress: 95,
+    status: "active",
+    overview:
+      "A concierge-level booking experience for spa clients with a focus on wellness journeys, service discovery, and smooth checkout.",
+    timeline: "Nov 1, 2024 → Jan 30, 2026",
+    nextMilestone: "Finalize payment confirmation emails",
+  },
+  "krit-design": {
+    name: "Krit Design Club",
+    description: "Design agency portfolio site",
+    progress: 70,
+    status: "active",
+    overview:
+      "Showcase studio work, case studies, and a booking flow with a polished editorial presentation.",
+    timeline: "Dec 10, 2024 → Mar 5, 2026",
+    nextMilestone: "Approve the case study layout",
+  },
+  "demo-project": {
+    name: "E-commerce Platform",
+    description: "Full-stack e-commerce solution",
+    progress: 45,
+    status: "active",
+    overview:
+      "Unified storefront with subscriptions, purchase history, and a streamlined checkout experience.",
+    timeline: "Jan 1, 2025 → Apr 18, 2026",
+    nextMilestone: "Review subscription management screens",
+  },
+}
+
+const overviewParagraph = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer facilisis, erat vel consequat luctus, mi neque accumsan ipsum, sed finibus turpis massa sed ante. Vestibulum sed pretium purus, sit amet finibus tellus. Aliquam erat volutpat. Maecenas et neque sed lorem viverra laoreet. Donec quis consequat augue. Proin fringilla, mauris a iaculis fermentum, sapien risus tempus odio, et tempus dolor libero sit amet purus. Nulla facilisi. Duis vitae sem nec nulla cursus vestibulum. Nunc a massa non nulla posuere aliquam. Cras in purus ac urna varius congue. Fusce at hendrerit eros."
 
 // User Profile Dropdown Component
 function UserProfileDropdown() {
@@ -261,7 +310,7 @@ function UserProfileDropdown() {
 export default function ReviewerPortal() {
   const params = useParams()
   const projectId = params.projectId as string
-  const [activeTab, setActiveTab] = useState("updates")
+  const [activeTab, setActiveTab] = useState("dashboard")
   const [userRole, setUserRole] = useState<"developer" | "reviewer" | null>(null)
   
   useEffect(() => {
@@ -278,87 +327,181 @@ export default function ReviewerPortal() {
   
   const isDeveloperView = userRole === "developer"
 
+  const projectDetails = mockProjectDetails[projectId] || {
+    name: projectId.replace(/-/g, " "),
+    description: "Project overview not available yet.",
+    progress: 0,
+    status: "active" as const,
+    overview:
+      "This project is still being set up. Share goals, timeline, and requirements here.",
+    timeline: "Timeline pending",
+    nextMilestone: "Kickoff checklist",
+  }
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-background flex">
+      {/* Sidebar */}
+      <aside className="hidden lg:flex w-64 border-r bg-background/80 backdrop-blur-sm flex-col justify-between">
+        <div className="p-6 space-y-6">
           <Link href="/" className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-md">
               <Zap className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold tracking-tight">TeamSync</span>
+            <span className="text-lg font-bold tracking-tight">TeamSync</span>
           </Link>
-          
-          <div className="flex items-center gap-3">
-            {userRole && (
-              <span className="text-sm font-medium text-muted-foreground capitalize">
-                {userRole}
-              </span>
-            )}
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-accent text-[10px] font-bold flex items-center justify-center text-accent-foreground">
-                2
-              </span>
-            </Button>
-            
-            <UserProfileDropdown />
-          </div>
-        </div>
-      </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        {/* Project Header */}
-        <div className="mb-8">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="space-y-1">
-              <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-bold capitalize">
-                  {projectId.replace(/-/g, " ")}
-                </h1>
-                <Badge variant="success">Active</Badge>
-              </div>
-              <p className="text-muted-foreground">
-                {isDeveloperView 
-                  ? "Manage updates and review reviewer questions" 
-                  : "View project updates and ask questions"}
-              </p>
-            </div>
-            
-            {isDeveloperView && (
-              <Button asChild>
-                <Link href="/generate">
-                  Generate New Update
+          <nav className="space-y-2">
+            {[
+              { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
+              { id: "updates", label: "Updates", icon: Video },
+              { id: "assistant", label: "AI Assistant", icon: MessageSquare },
+              { id: "settings", label: "Settings", icon: Settings },
+            ].map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveTab(item.id)}
+                className={cn(
+                  "w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                  activeTab === item.id
+                    ? "bg-muted text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                )}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+        <div className="border-t p-4 text-xs text-muted-foreground">
+          Project access is managed by your developer.
+        </div>
+      </aside>
+
+      <main className="flex-1">
+        {/* Top Bar */}
+        <header className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-40">
+          <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="lg:hidden">
+                <Link href="/" className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-md">
+                    <Zap className="h-5 w-5 text-primary-foreground" />
+                  </div>
+                  <span className="text-lg font-bold tracking-tight">TeamSync</span>
                 </Link>
-              </Button>
-            )}
-          </div>
-        </div>
+              </div>
+              <div className="hidden lg:block">
+                <p className="text-sm text-muted-foreground">Project</p>
+                <h1 className="text-lg font-semibold capitalize">
+                  {projectDetails.name}
+                </h1>
+              </div>
+            </div>
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="updates" className="gap-2">
-              <Video className="h-4 w-4" />
-              Updates Feed
-              <Badge variant="secondary" className="ml-1 text-[10px] py-0 px-1.5">
-                {mockUpdates.length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="chat" className="gap-2">
-              <MessageSquare className="h-4 w-4" />
-              AI Assistant
-              {isDeveloperView && (
-                <Badge variant="warning" className="ml-1 text-[10px] py-0 px-1.5">
-                  1
-                </Badge>
+            <div className="flex items-center gap-3">
+              {userRole && (
+                <span className="text-sm font-medium text-muted-foreground capitalize">
+                  {userRole}
+                </span>
               )}
-            </TabsTrigger>
-          </TabsList>
+              <Button variant="ghost" size="icon" className="relative">
+                <Bell className="h-5 w-5" />
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-accent text-[10px] font-bold flex items-center justify-center text-accent-foreground">
+                  2
+                </span>
+              </Button>
 
-          {/* Updates Feed */}
-          <TabsContent value="updates" className="space-y-6">
+              <UserProfileDropdown />
+            </div>
+          </div>
+        </header>
+
+        <div className="max-w-6xl mx-auto px-6 py-8">
+          {/* Tabs */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="lg:hidden">
+              <TabsTrigger value="dashboard" className="gap-2">
+                <LayoutGrid className="h-4 w-4" />
+                Dashboard
+              </TabsTrigger>
+              <TabsTrigger value="updates" className="gap-2">
+                <Video className="h-4 w-4" />
+                Updates
+              </TabsTrigger>
+              <TabsTrigger value="assistant" className="gap-2">
+                <MessageSquare className="h-4 w-4" />
+                AI Assistant
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="gap-2">
+                <Settings className="h-4 w-4" />
+                Settings
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Dashboard */}
+            <TabsContent value="dashboard" className="space-y-8">
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-3xl font-bold">{projectDetails.name}</h2>
+                    <Badge variant="success">Active</Badge>
+                  </div>
+                  <p className="text-muted-foreground max-w-2xl">
+                    {projectDetails.description}
+                  </p>
+                </div>
+                <div className="bg-card border rounded-xl p-4 w-full lg:max-w-sm space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Progress</span>
+                    <span className="font-semibold">{projectDetails.progress}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all"
+                      style={{ width: `${projectDetails.progress}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Timeline</span>
+                    <span>{projectDetails.timeline}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6 max-w-4xl mx-auto">
+                <Card className="p-6 lg:p-7">
+                  <CardContent className="p-0 space-y-4">
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                      <BarChart3 className="h-4 w-4 text-primary" />
+                      Project Overview
+                    </div>
+                    <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
+                      <p>{projectDetails.overview}</p>
+                      {Array.from({ length: 17 }).map((_, index) => (
+                        <p key={index}>{overviewParagraph}</p>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="p-5">
+                  <CardContent className="p-0 space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                      <MessageSquare className="h-4 w-4 text-primary" />
+                      Last Update
+                    </div>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {mockUpdates[0]?.title || "No updates yet"}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            {/* Updates Feed */}
+            <TabsContent value="updates" className="space-y-6">
             <div className="grid gap-6">
               {/* Timeline */}
               <div className="relative">
@@ -411,7 +554,7 @@ export default function ReviewerPortal() {
           </TabsContent>
 
           {/* AI Assistant Chat */}
-          <TabsContent value="chat">
+          <TabsContent value="assistant">
             <div className="grid md:grid-cols-[1fr,300px] gap-6">
               <div className="bg-card border rounded-xl p-6">
                 <ChatInterface 
@@ -450,8 +593,18 @@ export default function ReviewerPortal() {
                 )}
               </div>
             </div>
-          </TabsContent>
+            </TabsContent>
+
+            <TabsContent value="settings">
+              <div className="bg-card border rounded-xl p-6">
+                <h3 className="text-lg font-semibold mb-2">Settings</h3>
+                <p className="text-sm text-muted-foreground">
+                  Settings for this project will live here.
+                </p>
+              </div>
+            </TabsContent>
         </Tabs>
+        </div>
       </main>
     </div>
   )

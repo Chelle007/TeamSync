@@ -26,75 +26,18 @@ import {
   Bell,
   GitBranch,
   LogOut,
+  Loader2,
   Edit2,
   Check,
   X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-// Mock data for projects
-const mockProjects = [
-  {
-    id: "batam-spa",
-    name: "Batam1SPA Website",
-    description: "Wellness and spa booking platform",
-    githubRepo: "batam/spa-website",
-    thumbnail: null,
-    progress: 95,
-    status: "active" as const,
-    updatesCount: 8,
-    lastUpdate: "Jan 15, 2026",
-    createdAt: "Nov 1, 2024",
-  },
-  {
-    id: "krit-design",
-    name: "Krit Design Club",
-    description: "Design agency portfolio site",
-    githubRepo: "krit/design-club",
-    thumbnail: null,
-    progress: 70,
-    status: "active" as const,
-    updatesCount: 5,
-    lastUpdate: "Jan 12, 2026",
-    createdAt: "Dec 10, 2024",
-  },
-  {
-    id: "demo-project",
-    name: "E-commerce Platform",
-    description: "Full-stack e-commerce solution",
-    githubRepo: "techstart/ecommerce",
-    thumbnail: null,
-    progress: 45,
-    status: "active" as const,
-    updatesCount: 3,
-    lastUpdate: "Jan 10, 2026",
-    createdAt: "Jan 1, 2025",
-  },
-  {
-    id: "fitness-app",
-    name: "FitTrack Mobile App",
-    description: "Fitness tracking and workout app",
-    githubRepo: "fitlife/fittrack-app",
-    thumbnail: null,
-    progress: 100,
-    status: "completed" as const,
-    updatesCount: 12,
-    lastUpdate: "Dec 20, 2024",
-    createdAt: "Aug 15, 2024",
-  },
-  {
-    id: "restaurant-site",
-    name: "Sakura Restaurant",
-    description: "Japanese restaurant website",
-    githubRepo: "sakura/website",
-    thumbnail: null,
-    progress: 100,
-    status: "completed" as const,
-    updatesCount: 6,
-    lastUpdate: "Nov 30, 2024",
-    createdAt: "Sep 1, 2024",
-  },
-]
+// Helper function to format date
+function formatDate(dateString: string): string {
+  const date = new Date(dateString)
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+}
 
 type ProjectStatus = "active" | "completed" | "paused"
 
@@ -111,7 +54,13 @@ interface Project {
   createdAt: string
 }
 
-function ProjectCard({ project }: { project: Project }) {
+function ProjectCard({
+  project,
+  canGenerate,
+}: {
+  project: Project
+  canGenerate: boolean
+}) {
   const statusColors = {
     active: "bg-emerald-500",
     completed: "bg-blue-500",
@@ -142,14 +91,16 @@ function ProjectCard({ project }: { project: Project }) {
           </div>
         )}
         {/* Hover overlay */}
-        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-          <Button size="sm" variant="secondary" asChild>
-            <Link href={`/${project.id}/generate`}>
-              <Video className="h-4 w-4" />
-              Generate Update
-            </Link>
-          </Button>
-        </div>
+        {canGenerate && (
+          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+            <Button size="sm" variant="secondary" asChild>
+              <Link href={`/${project.id}/generate`}>
+                <Video className="h-4 w-4" />
+                Generate Update
+              </Link>
+            </Button>
+          </div>
+        )}
       </div>
 
       <CardContent className="p-4 space-y-3">
@@ -168,7 +119,7 @@ function ProjectCard({ project }: { project: Project }) {
                 {project.githubRepo}
               </p>
             ) : project.description ? (
-              <p className="text-xs text-muted-foreground truncate">{project.description}</p>
+              <p className="text-xs text-muted-foreground line-clamp-2">{project.description}</p>
             ) : null}
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
@@ -219,11 +170,13 @@ function ProjectCard({ project }: { project: Project }) {
               <ExternalLink className="h-3 w-3" />
             </Link>
           </Button>
-          <Button size="sm" className="flex-1 text-xs h-8" asChild>
-            <Link href={`/${project.id}/generate`}>
-              New Update
-            </Link>
-          </Button>
+          {canGenerate && (
+            <Button size="sm" className="flex-1 text-xs h-8" asChild>
+              <Link href={`/${project.id}/generate`}>
+                New Update
+              </Link>
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -435,32 +388,119 @@ function UserProfileDropdown() {
 export default function ProjectsDashboard() {
   const [searchQuery, setSearchQuery] = useState("")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
-  const [userRole, setUserRole] = useState<"developer" | "reviewer" | null>(null)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const router = useRouter()
 
+  // Fetch projects from Supabase
   useEffect(() => {
-    async function fetchUserRole() {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const role = user.user_metadata?.role || "developer"
-        setUserRole(role === "reviewer" ? "reviewer" : "developer")
-        
-        // If reviewer, redirect to reviewer dashboard (fallback if middleware didn't catch it)
-        if (role === "reviewer" && window.location.pathname === "/") {
-          router.replace("/demo-project")
+    async function fetchProjects() {
+      try {
+        const supabase = createClient()
+
+        // Get current user
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push("/login")
+          setIsLoading(false)
           return
         }
-      } else {
-        // If not logged in, redirect to login
-        router.replace("/login")
+
+        let role = user.user_metadata?.role as string | undefined
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .maybeSingle()
+
+        if (profile?.role) {
+          role = profile.role
+        }
+        setUserRole(role || "developer")
+
+        // Fetch projects for this user (via project_user junction table)
+        const { data: userProjects, error: userProjectsError } = await supabase
+          .from("project_user")
+          .select("project_id")
+          .eq("user_id", user.id)
+
+        if (userProjectsError) {
+          console.error("Error fetching user projects:", userProjectsError)
+          toast.error("Failed to load projects")
+          setIsLoading(false)
+          return
+        }
+
+        if (!userProjects || userProjects.length === 0) {
+          setProjects([])
+          setIsLoading(false)
+          return
+        }
+
+        const projectIds = userProjects.map((up) => up.project_id)
+
+        // Then fetch the actual projects
+        const { data: projectsData, error } = await supabase
+          .from("projects")
+          .select("*")
+          .in("id", projectIds)
+          .order("created_at", { ascending: false })
+
+        if (error) {
+          console.error("Error fetching projects:", error)
+          toast.error("Failed to load projects")
+          setIsLoading(false)
+          return
+        }
+
+        // Fetch update counts and latest update for each project
+        const projectsWithCounts = await Promise.all(
+          (projectsData || []).map(async (project) => {
+            const { count } = await supabase
+              .from("updates")
+              .select("*", { count: "exact", head: true })
+              .eq("project_id", project.id)
+
+            const { data: latestUpdate } = await supabase
+              .from("updates")
+              .select("created_at")
+              .eq("project_id", project.id)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle()
+
+            return {
+              id: project.id,
+              name: project.name,
+              description: project.summary || undefined,
+              githubRepo: project.github_url || undefined,
+              thumbnail: null,
+              progress: project.progress || 0,
+              status: project.status,
+              updatesCount: count || 0,
+              lastUpdate: latestUpdate?.created_at
+                ? formatDate(latestUpdate.created_at)
+                : formatDate(project.created_at),
+              createdAt: formatDate(project.created_at),
+            }
+          })
+        )
+
+        setProjects(projectsWithCounts)
+        setIsLoading(false)
+      } catch (error) {
+        console.error("Error:", error)
+        toast.error("Failed to load projects")
+        setIsLoading(false)
       }
     }
-    fetchUserRole()
+
+    fetchProjects()
   }, [router])
 
-  const activeProjects = mockProjects.filter((p) => p.status === "active")
-  const completedProjects = mockProjects.filter((p) => p.status === "completed")
+  const activeProjects = projects.filter((p) => p.status === "active")
+  const completedProjects = projects.filter((p) => p.status === "completed")
 
   const filterProjects = (projects: Project[]) => {
     if (!searchQuery) return projects
@@ -511,19 +551,21 @@ export default function ProjectsDashboard() {
               Manage your projects and generate updates
             </p>
           </div>
-          <Button asChild>
-            <Link href="/new">
-              <Plus className="h-4 w-4" />
-              New Project
-            </Link>
-          </Button>
+          {userRole === "developer" && (
+            <Button asChild>
+              <Link href="/new">
+                <Plus className="h-4 w-4" />
+                New Project
+              </Link>
+            </Button>
+          )}
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {[
             { label: "Active Projects", value: activeProjects.length, icon: FolderOpen, color: "text-emerald-500" },
-            { label: "Total Updates", value: mockProjects.reduce((acc, p) => acc + p.updatesCount, 0), icon: Video, color: "text-blue-500" },
+            { label: "Total Updates", value: projects.reduce((acc, p) => acc + p.updatesCount, 0), icon: Video, color: "text-blue-500" },
             { label: "Completed", value: completedProjects.length, icon: TrendingUp, color: "text-violet-500" },
             { label: "This Month", value: 12, icon: Calendar, color: "text-amber-500" },
           ].map((stat) => (
@@ -593,10 +635,19 @@ export default function ProjectsDashboard() {
           </TabsList>
 
           <TabsContent value="active">
-            {filterProjects(activeProjects).length > 0 ? (
+            {isLoading ? (
+              <div className="text-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading projects...</p>
+              </div>
+            ) : filterProjects(activeProjects).length > 0 ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filterProjects(activeProjects).map((project) => (
-                  <ProjectCard key={project.id} project={project} />
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    canGenerate={userRole === "developer"}
+                  />
                 ))}
               </div>
             ) : (
@@ -605,10 +656,19 @@ export default function ProjectsDashboard() {
           </TabsContent>
 
           <TabsContent value="completed">
-            {filterProjects(completedProjects).length > 0 ? (
+            {isLoading ? (
+              <div className="text-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading projects...</p>
+              </div>
+            ) : filterProjects(completedProjects).length > 0 ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filterProjects(completedProjects).map((project) => (
-                  <ProjectCard key={project.id} project={project} />
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    canGenerate={userRole === "developer"}
+                  />
                 ))}
               </div>
             ) : (
@@ -617,10 +677,19 @@ export default function ProjectsDashboard() {
           </TabsContent>
 
           <TabsContent value="all">
-            {filterProjects(mockProjects).length > 0 ? (
+            {isLoading ? (
+              <div className="text-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading projects...</p>
+              </div>
+            ) : filterProjects(projects).length > 0 ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filterProjects(mockProjects).map((project) => (
-                  <ProjectCard key={project.id} project={project} />
+                {filterProjects(projects).map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    canGenerate={userRole === "developer"}
+                  />
                 ))}
               </div>
             ) : (

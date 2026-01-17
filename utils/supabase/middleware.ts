@@ -69,16 +69,9 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse
   }
 
-  // If on login page and authenticated, redirect to appropriate dashboard
+  // If on login page and authenticated, redirect to dashboard
   if (pathname === '/login') {
-    url.pathname = userRole === 'reviewer' ? '/demo-project' : '/'
-    return NextResponse.redirect(url)
-  }
-
-  // CRITICAL: If reviewer tries to access developer dashboard root, redirect to reviewer dashboard
-  // This must happen before any other route checks
-  if (userRole === 'reviewer' && pathname === '/') {
-    url.pathname = '/demo-project'
+    url.pathname = '/'
     return NextResponse.redirect(url)
   }
 

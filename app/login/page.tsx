@@ -25,8 +25,7 @@ function LoginForm() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const userRole = user.user_metadata?.role || "developer"
-        router.push(userRole === "reviewer" ? "/demo-project" : "/")
+        router.push("/")
       }
     }
     checkAuth()
@@ -203,11 +202,7 @@ function LoginForm() {
         toast.success("Welcome back!")
 
         // Redirect based on role
-        if (role === "developer") {
-          router.push("/")
-        } else {
-          router.push("/demo-project")
-        }
+        router.push("/")
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Authentication failed"
