@@ -1,6 +1,7 @@
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
+import { uploadVideo, deleteLocalFile } from '@/lib/storage';
 
 // Get video duration using ffprobe
 function getVideoDuration(videoPath) {
@@ -115,10 +116,25 @@ export async function POST(request) {
                 .run();
         });
 
+        // Upload to Supabase Storage
+        console.log('☁️ Uploading video to Supabase...');
+        const videoUrl = await uploadVideo(outputPath, reportKey || Date.now().toString());
+
+        if (videoUrl) {
+            console.log('✅ Video uploaded to Supabase:', videoUrl);
+            // Clean up local files after successful upload
+            deleteLocalFile(outputPath);
+            deleteLocalFile(videoFilePath); // Raw video
+            deleteLocalFile(audioFilePath); // Audio file (if still exists)
+        } else {
+            console.warn('⚠️ Supabase upload failed, keeping local files');
+        }
+
         return new Response(
             JSON.stringify({
                 success: true,
                 finalVideoPath: `/final-videos/${outputFilename}`,
+                videoUrl: videoUrl || `/final-videos/${outputFilename}`, // Supabase URL or fallback
                 filepath: outputPath,
                 videoDuration,
                 audioDuration,
