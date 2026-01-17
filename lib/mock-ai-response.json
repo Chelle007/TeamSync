@@ -1,0 +1,20 @@
+{
+  "script": "In this update, Desmond made two visual changes to the event website. First, the footer color was changed from pink to neon green for a more vibrant look. Second, the entire website font was updated from Geist to Montserrat to improve readability and give the site a more modern feel.",
+  "changes": [
+    {
+      "title": "Changed Footer Color",
+      "description": "Updated footer from pink to neon green",
+      "page_url": "/",
+      "selector": "footer",
+      "duration_seconds": 6
+    },
+    {
+      "title": "Updated Website Font",
+      "description": "Changed from Geist to Montserrat font family",
+      "page_url": "/",
+      "selector": "body",
+      "duration_seconds": 7
+    }
+  ],
+  "report_key": "PR_5_2026_01_17"
+}

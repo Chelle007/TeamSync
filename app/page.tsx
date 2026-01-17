@@ -30,6 +30,7 @@ import {
   Edit2,
   Check,
   X,
+  Trash2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -57,9 +58,13 @@ interface Project {
 function ProjectCard({
   project,
   canGenerate,
+  onDelete,
+  isDeleting,
 }: {
   project: Project
   canGenerate: boolean
+  onDelete?: (projectId: string) => void
+  isDeleting?: boolean
 }) {
   const statusColors = {
     active: "bg-emerald-500",
@@ -164,17 +169,30 @@ function ProjectCard({
 
         {/* Quick Actions */}
         <div className="flex gap-2 pt-1">
-          <Button variant="outline" size="sm" className="flex-1 text-xs h-8" asChild>
-            <Link href={`/${project.id}`}>
-              View Portal
-              <ExternalLink className="h-3 w-3" />
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex-1 text-xs h-8 whitespace-nowrap" 
+            asChild
+          >
+            <Link href={`/${project.id}`} className="flex items-center justify-center gap-1.5">
+              <span>View Portal</span>
+              <ExternalLink className="h-3 w-3 shrink-0" />
             </Link>
           </Button>
-          {canGenerate && (
-            <Button size="sm" className="flex-1 text-xs h-8" asChild>
-              <Link href={`/${project.id}/generate`}>
-                New Update
-              </Link>
+          {canGenerate && onDelete && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-8 px-3 text-xs text-destructive hover:text-destructive hover:bg-destructive/10" 
+              onClick={() => onDelete(project.id)}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Trash2 className="h-3 w-3" />
+              )}
             </Button>
           )}
         </div>
@@ -495,6 +513,7 @@ export default function ProjectsDashboard() {
 
   const activeProjects = projects.filter((p) => p.status === "active")
   const completedProjects = projects.filter((p) => p.status === "completed")
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
 
   const filterProjects = (projects: Project[]) => {
     if (!searchQuery) return projects
@@ -505,6 +524,56 @@ export default function ProjectsDashboard() {
         p.description?.toLowerCase().includes(query) ||
         p.githubRepo?.toLowerCase().includes(query)
     )
+  }
+
+  const handleDeleteProject = async (projectId: string) => {
+    if (!confirm("Are you sure you want to delete this project? This action cannot be undone.")) {
+      return
+    }
+
+    setDeletingProjectId(projectId)
+    try {
+      const supabase = createClient()
+      
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast.error("Please sign in to delete projects")
+        return
+      }
+
+      // Delete project_user relationship first (if exists)
+      const { error: projectUserError } = await supabase
+        .from("project_user")
+        .delete()
+        .eq("project_id", projectId)
+        .eq("user_id", user.id)
+
+      if (projectUserError) {
+        console.error("Error deleting project_user:", projectUserError)
+        // Continue anyway - might not be the owner
+      }
+
+      // Delete the project (this should cascade delete related records if foreign keys are set up)
+      const { error: deleteError } = await supabase
+        .from("projects")
+        .delete()
+        .eq("id", projectId)
+
+      if (deleteError) {
+        throw deleteError
+      }
+
+      toast.success("Project deleted successfully")
+      
+      // Remove from local state
+      setProjects(projects.filter((p) => p.id !== projectId))
+    } catch (error) {
+      console.error("Error deleting project:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to delete project")
+    } finally {
+      setDeletingProjectId(null)
+    }
   }
 
   return (
@@ -642,6 +711,8 @@ export default function ProjectsDashboard() {
                     key={project.id}
                     project={project}
                     canGenerate={userRole === "developer"}
+                    onDelete={handleDeleteProject}
+                    isDeleting={deletingProjectId === project.id}
                   />
                 ))}
               </div>
@@ -663,6 +734,8 @@ export default function ProjectsDashboard() {
                     key={project.id}
                     project={project}
                     canGenerate={userRole === "developer"}
+                    onDelete={handleDeleteProject}
+                    isDeleting={deletingProjectId === project.id}
                   />
                 ))}
               </div>
@@ -684,6 +757,8 @@ export default function ProjectsDashboard() {
                     key={project.id}
                     project={project}
                     canGenerate={userRole === "developer"}
+                    onDelete={handleDeleteProject}
+                    isDeleting={deletingProjectId === project.id}
                   />
                 ))}
               </div>

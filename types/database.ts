@@ -22,6 +22,7 @@ export interface Project {
   project_scope?: string
   status: "active" | "paused" | "completed"
   progress: number // 0-100
+  webhook_secret?: string
 }
 
 export interface ProjectUser {
