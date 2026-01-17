@@ -275,6 +275,13 @@ export default function ReviewerPortal() {
         return
       }
 
+      // Check if returning from re-authentication
+      const returnToProject = sessionStorage.getItem('return_to_project')
+      if (returnToProject === projectId) {
+        sessionStorage.removeItem('return_to_project')
+        toast.success('Re-authenticated successfully! You can now setup the webhook.')
+      }
+
       // Fetch user role from profile
       const { data: profile } = await supabase
         .from("profiles")

@@ -346,6 +346,31 @@ export default function NewProjectPage() {
 
       toast.success("Project created successfully!")
       
+      // Automatically setup webhook if GitHub URL is provided
+      if (formData.githubRepo.trim() && repoStatus === 'verified') {
+        try {
+          const webhookResponse = await fetch('/api/projects/setup-webhook', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ projectId: project.id }),
+          })
+
+          if (webhookResponse.ok) {
+            const webhookData = await webhookResponse.json()
+            toast.success('GitHub webhook configured automatically!')
+          } else {
+            // Don't fail the whole flow if webhook setup fails
+            console.warn('Webhook setup failed, but project was created')
+            toast.info('Project created! You can setup the webhook later in Settings.')
+          }
+        } catch (webhookError) {
+          console.error('Webhook setup error:', webhookError)
+          // Don't fail the whole flow
+        }
+      }
+      
       // Redirect to project page
       router.push(`/${project.id}`)
     } catch (error) {

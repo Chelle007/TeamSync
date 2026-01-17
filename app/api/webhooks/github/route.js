@@ -63,27 +63,41 @@ function assembleMegaPayload(webhookData, commits, diff) {
 
 export async function POST(request) {
   try {
-    console.log('🎣 Webhook received from GitHub');
+    console.log('🎣 [Webhook] Received webhook from GitHub');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     // Parse webhook payload first (need it for project lookup)
     const body = await request.text();
+    console.log(`📦 [Webhook] Payload size: ${body.length} bytes`);
+    
     const webhookData = JSON.parse(body);
     const { action, pull_request, repository } = webhookData;
 
+    console.log(`📋 [Webhook] Event details:`);
+    console.log(`   - Action: ${action}`);
+    console.log(`   - Repository: ${repository?.full_name}`);
+    console.log(`   - PR Number: ${pull_request?.number}`);
+    console.log(`   - PR Merged: ${pull_request?.merged}`);
+
     // Only process merged PRs
     if (action !== 'closed' || !pull_request?.merged) {
-      console.log('⏭️  Skipping: Not a merged PR');
+      console.log('⏭️  [Webhook] Skipping: Not a merged PR');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       return new Response(JSON.stringify({ message: 'Not a merged PR, ignoring' }), { status: 200 });
     }
 
-    console.log(`📦 Processing merged PR #${pull_request.number} from ${repository.full_name}`);
+    console.log(`✅ [Webhook] Processing merged PR #${pull_request.number} from ${repository.full_name}`);
 
     // Find project by repository URL
     const repoFullName = repository.full_name; // e.g., "owner/repo"
+    console.log(`\n🔍 [Webhook] Looking up project for repo: ${repoFullName}`);
+    
     const project = await findProjectByRepo(repoFullName);
 
     if (!project) {
-      console.log(`❌ No project found for repository: ${repoFullName}`);
+      console.log(`❌ [Webhook] No project found for repository: ${repoFullName}`);
+      console.log(`💡 [Webhook] Hint: Make sure a project exists with GitHub URL matching this repo`);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       return new Response(
         JSON.stringify({ 
           error: 'No project configured for this repository',
@@ -94,27 +108,39 @@ export async function POST(request) {
       );
     }
 
-    console.log(`✅ Found project: ${project.name} (${project.id})`);
+    console.log(`✅ [Webhook] Found project: ${project.name} (${project.id})`);
+    console.log(`   - Webhook secret: ${project.webhook_secret ? 'Present' : 'MISSING'}`);
 
     // Verify webhook signature using project's webhook secret
     const signature = request.headers.get('x-hub-signature-256');
+    console.log(`\n🔐 [Webhook] Verifying signature...`);
+    console.log(`   - Signature header: ${signature ? 'Present' : 'MISSING'}`);
+    
     if (!signature) {
-      console.log('❌ Missing webhook signature');
+      console.log('❌ [Webhook] Missing webhook signature');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       return new Response(JSON.stringify({ error: 'Missing signature' }), { status: 401 });
     }
 
     const isValid = verifyWebhookSignature(body, signature, project.webhook_secret);
+    console.log(`   - Signature valid: ${isValid}`);
+    
     if (!isValid) {
-      console.log('❌ Invalid webhook signature');
+      console.log('❌ [Webhook] Invalid webhook signature');
+      console.log('   💡 Check that webhook secret in GitHub matches database');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       return new Response(JSON.stringify({ error: 'Invalid signature' }), { status: 401 });
     }
 
-    console.log('✅ Webhook signature verified');
+    console.log('✅ [Webhook] Signature verified');
 
     // Get project owner's GitHub token for API calls
+    console.log(`\n🔑 [Webhook] Getting project owner's GitHub token...`);
     const githubToken = await getProjectOwnerGitHubToken(project.id);
     if (!githubToken) {
-      console.log('⚠️  No GitHub token found for project owner, using fallback');
+      console.log('⚠️  [Webhook] No GitHub token found for project owner, using fallback');
+    } else {
+      console.log('✅ [Webhook] GitHub token retrieved');
     }
 
     // Extract data
@@ -123,21 +149,29 @@ export async function POST(request) {
     const prNumber = pull_request.number;
     const commitsUrl = pull_request.commits_url;
     
+    console.log(`\n📥 [Webhook] Fetching PR data from GitHub...`);
+    console.log(`   - Owner: ${owner}`);
+    console.log(`   - Repo: ${repo}`);
+    console.log(`   - PR: #${prNumber}`);
+    
     // Use project owner's token, fallback to env token
     const token = githubToken || process.env.GITHUB_TEST_TOKEN;
 
     // Fetch commits and diff
-    console.log('📥 Fetching commits and diff from GitHub...');
+    console.log('   - Fetching commits...');
     const commits = await fetchCommits(commitsUrl, token);
+    console.log(`   ✅ Fetched ${commits.length} commits`);
+    
+    console.log('   - Fetching diff...');
     const diff = await fetchDiff(owner, repo, prNumber, token);
+    console.log(`   ✅ Fetched diff (${diff.length} bytes)`);
 
     // Assemble mega-payload
     const megaPayload = assembleMegaPayload(webhookData, commits, diff);
-
-    console.log('✅ Mega-payload assembled');
+    console.log('✅ [Webhook] Mega-payload assembled');
 
     // Store webhook event in database
-    console.log('💾 Storing webhook event in database...');
+    console.log('\n💾 [Webhook] Storing webhook event in database...');
     const webhookEvent = await storeWebhookEvent({
       projectId: project.id,
       eventType: 'pull_request',
@@ -150,17 +184,22 @@ export async function POST(request) {
     });
 
     if (!webhookEvent) {
+      console.error('❌ [Webhook] Failed to store webhook event');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       throw new Error('Failed to store webhook event');
     }
 
-    console.log(`✅ Webhook event stored: ${webhookEvent.id}`);
+    console.log(`✅ [Webhook] Webhook event stored: ${webhookEvent.id}`);
 
     // Trigger video generation asynchronously (don't wait)
-    console.log('🎬 Triggering video generation...');
+    console.log('\n🎬 [Webhook] Triggering video generation...');
     triggerVideoGeneration(project.id, webhookEvent.id);
+    console.log('✅ [Webhook] Video generation queued');
 
     // Return success immediately (don't wait for video)
-    console.log('✅ Webhook processed successfully, video generation queued');
+    console.log('\n✅ [Webhook] Webhook processed successfully!');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -178,7 +217,9 @@ export async function POST(request) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('❌ Webhook error:', error);
+    console.error('❌ [Webhook] ERROR:', error);
+    console.error('   Stack:', error.stack);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     return new Response(
       JSON.stringify({ 
         error: error.message,

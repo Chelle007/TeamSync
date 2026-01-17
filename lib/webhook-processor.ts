@@ -25,6 +25,8 @@ export function parseGitHubRepoUrl(
  * Find project by matching repository URL
  */
 export async function findProjectByRepo(repoFullName: string) {
+  console.log('🔍 [findProjectByRepo] Starting search for repo:', repoFullName);
+  
   const supabase = await createClient();
 
   // Get all projects with github_url
@@ -34,22 +36,47 @@ export async function findProjectByRepo(repoFullName: string) {
     .not("github_url", "is", null);
 
   if (error || !projects) {
-    console.error("Error fetching projects:", error);
+    console.error("❌ [findProjectByRepo] Error fetching projects:", error);
     return null;
   }
+
+  console.log(`📋 [findProjectByRepo] Found ${projects.length} projects with GitHub URLs`);
 
   // Find matching project
   for (const project of projects) {
     if (!project.github_url) continue;
 
+    console.log(`\n🔎 [findProjectByRepo] Checking project: ${project.name}`);
+    console.log(`   - Project ID: ${project.id}`);
+    console.log(`   - GitHub URL: ${project.github_url}`);
+
     const parsed = parseGitHubRepoUrl(project.github_url);
-    if (!parsed) continue;
+    if (!parsed) {
+      console.log(`   ⚠️  Failed to parse GitHub URL`);
+      continue;
+    }
 
     const projectRepoFullName = `${parsed.owner}/${parsed.repo}`;
+    console.log(`   - Parsed repo: ${projectRepoFullName}`);
+    console.log(`   - Looking for: ${repoFullName}`);
+    console.log(`   - Match (case-insensitive): ${projectRepoFullName.toLowerCase() === repoFullName.toLowerCase()}`);
+
     if (projectRepoFullName.toLowerCase() === repoFullName.toLowerCase()) {
+      console.log(`   ✅ MATCH FOUND!`);
       return project;
+    } else {
+      console.log(`   ❌ No match`);
     }
   }
+
+  console.log(`\n❌ [findProjectByRepo] No matching project found for: ${repoFullName}`);
+  console.log(`   Available repos in database:`);
+  projects.forEach(p => {
+    const parsed = parseGitHubRepoUrl(p.github_url);
+    if (parsed) {
+      console.log(`   - ${parsed.owner}/${parsed.repo} (${p.name})`);
+    }
+  });
 
   return null;
 }
