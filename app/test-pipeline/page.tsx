@@ -10,7 +10,7 @@ export default function TestPipelinePage() {
   const [isTestingAI, setIsTestingAI] = useState(false);
   const [result, setResult] = useState(null);
   const [aiResult, setAiResult] = useState(null);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   const testPayload = {
     projectId: 'PR_BROWSER_TEST', // Can be any identifier like "PR_5", "TEST_123", etc.
