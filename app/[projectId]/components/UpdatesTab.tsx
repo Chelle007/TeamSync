@@ -164,10 +164,21 @@ export function UpdatesTab({
 
                   <div className="grid lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-6">
                     <div className="space-y-3">
-                      {update.video_url ? (
-                        <div className="aspect-video rounded-xl bg-muted/60 border flex items-center justify-center relative overflow-hidden">
-                          <Video className="h-8 w-8 text-muted-foreground" />
-                          <span className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-black/10" />
+                      {update.status === "processing" ? (
+                        <div className="aspect-video rounded-xl bg-muted/60 border flex flex-col items-center justify-center gap-3">
+                          <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                          <p className="text-sm text-muted-foreground">Generating video...</p>
+                        </div>
+                      ) : update.video_url ? (
+                        <div className="aspect-video rounded-xl bg-muted/60 border flex items-center justify-center relative overflow-hidden group cursor-pointer">
+                          <video
+                            src={update.video_url}
+                            controls
+                            className="w-full h-full object-contain"
+                            preload="metadata"
+                          >
+                            Your browser does not support the video tag.
+                          </video>
                         </div>
                       ) : (
                         <div className="aspect-video rounded-xl bg-muted/60 border flex items-center justify-center">
