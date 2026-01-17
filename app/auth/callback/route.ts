@@ -7,12 +7,20 @@ export async function GET(request: Request) {
   const role = searchParams.get('role') || 'developer'
   const verifyRepo = searchParams.get('verify_repo') === 'true'
   const redirectTo = searchParams.get('redirect_to')
+  const returnToProject = searchParams.get('return_to') === 'project'
 
   if (code) {
     const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     
     if (!error) {
+      // If returning to a specific project after re-auth
+      if (returnToProject) {
+        // The project ID should be in sessionStorage (set by the client)
+        // We'll redirect to root and let the client handle it
+        return NextResponse.redirect(`${origin}/?reauth=success`)
+      }
+      
       // If there's a custom redirect, use it
       if (redirectTo) {
         return NextResponse.redirect(`${origin}${redirectTo}`)

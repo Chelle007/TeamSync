@@ -346,25 +346,29 @@ export default function NewProjectPage() {
 
       toast.success("Project created successfully!")
       
-      // Automatically generate Update 1 if GitHub repo is linked
-      if (formData.githubRepo.trim()) {
-        // Generate Update 1 in the background (don't wait for it)
-        fetch(`/api/projects/${project.id}/updates`, {
-          method: 'POST',
-        })
-          .then(async (response) => {
-            if (response.ok) {
-              toast.success("Update 1 generated successfully!")
-            } else {
-              const data = await response.json()
-              console.error('Failed to generate Update 1:', data.error)
-              // Don't show error toast - it's not critical, user can generate manually
-            }
+      // Automatically setup webhook if GitHub URL is provided
+      if (formData.githubRepo.trim() && repoStatus === 'verified') {
+        try {
+          const webhookResponse = await fetch('/api/projects/setup-webhook', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ projectId: project.id }),
           })
-          .catch((error) => {
-            console.error('Error generating Update 1:', error)
-            // Don't show error toast - it's not critical
-          })
+
+          if (webhookResponse.ok) {
+            const webhookData = await webhookResponse.json()
+            toast.success('GitHub webhook configured automatically!')
+          } else {
+            // Don't fail the whole flow if webhook setup fails
+            console.warn('Webhook setup failed, but project was created')
+            toast.info('Project created! You can setup the webhook later in Settings.')
+          }
+        } catch (webhookError) {
+          console.error('Webhook setup error:', webhookError)
+          // Don't fail the whole flow
+        }
       }
       
       // Redirect to project page
@@ -641,7 +645,7 @@ export default function NewProjectPage() {
                 <Button 
                   type="submit" 
                   className="flex-1" 
-                  disabled={isLoading || isSummarizing || (formData.githubRepo.trim() && repoStatus !== "verified")}
+                  disabled={isLoading || isSummarizing || (!!formData.githubRepo.trim() && repoStatus !== "verified")}
                 >
                   {isLoading || isSummarizing ? (
                     <>

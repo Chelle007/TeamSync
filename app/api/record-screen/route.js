@@ -6,13 +6,20 @@ import ffmpeg from 'fluent-ffmpeg';
 export async function POST(request) {
   let browser;
   try {
-    const { changes, reportKey } = await request.json();
+    const { changes, reportKey, liveUrl } = await request.json();
 
     if (!changes || !Array.isArray(changes)) {
       return new Response(JSON.stringify({ error: 'Changes array is required' }), { status: 400 });
     }
 
-    const baseUrl = process.env.DEPLOYED_SITE_URL;
+    // Use liveUrl from request, fallback to env var
+    const baseUrl = liveUrl || process.env.DEPLOYED_SITE_URL;
+    
+    if (!baseUrl) {
+      return new Response(JSON.stringify({ error: 'No live URL provided for recording' }), { status: 400 });
+    }
+    
+    console.log(`🎬 Recording with base URL: ${baseUrl}`);
     const framesDir = path.join(process.cwd(), 'public', 'frames', reportKey || 'default');
     const videoDir = path.join(process.cwd(), 'public', 'recordings');
 
@@ -35,8 +42,16 @@ export async function POST(request) {
     let frameCount = 0;
 
     // Navigate to first page and scroll to top
-    const firstUrl = `${baseUrl}${changes[0].page_url}`;
-    await page.goto(firstUrl, { waitUntil: 'networkidle2' });
+    const pageUrl = changes[0].page_url || '/';
+    const firstUrl = pageUrl.startsWith('http') ? pageUrl : `${baseUrl}${pageUrl}`;
+    console.log(`🔗 Navigating to: ${firstUrl}`);
+    
+    try {
+      await page.goto(firstUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+    } catch (navError) {
+      console.error(`Failed to navigate to ${firstUrl}:`, navError.message);
+      throw new Error(`Cannot navigate to URL: ${firstUrl}`);
+    }
     await page.evaluate(() => window.scrollTo(0, 0)); // Start at top
     await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -69,7 +84,6 @@ export async function POST(request) {
     // Navigate through changes with smooth scrolling
     for (let i = 0; i < scrollTargets.length; i++) {
       const change = scrollTargets[i];
-      const url = `${baseUrl}${change.page_url}`;
       const duration = (change.duration_seconds || 5) * 1000;
       const totalFrames = Math.floor((duration / 1000) * fps);
       const frameInterval = 1000 / fps;
@@ -79,7 +93,10 @@ export async function POST(request) {
 
       // Navigate if URL changed
       if (i > 0 && scrollTargets[i - 1].page_url !== change.page_url) {
-        await page.goto(url, { waitUntil: 'networkidle2' });
+        const changePageUrl = change.page_url || '/';
+        const navUrl = changePageUrl.startsWith('http') ? changePageUrl : `${baseUrl}${changePageUrl}`;
+        console.log(`🔗 Navigating to: ${navUrl}`);
+        await page.goto(navUrl, { waitUntil: 'networkidle2', timeout: 30000 });
         await page.evaluate(() => window.scrollTo(0, 0));
         currentScrollY = 0;
       }

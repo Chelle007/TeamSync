@@ -48,6 +48,10 @@ function LoginForm() {
         provider: "github",
         options: {
           redirectTo: `${window.location.origin}/auth/callback?role=${role}`,
+          queryParams: {
+            // Request repo scope for webhook management
+            scope: "repo read:user user:email",
+          },
         },
       })
 
