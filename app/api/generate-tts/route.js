@@ -19,6 +19,7 @@ export async function POST(request) {
       model: 'gpt-4o-mini-tts',
       voice: 'alloy',
       input: script,
+      speed: 1.1, // 1.0 is normal, 1.25 is max (faster)
     });
 
     // Save audio file locally
