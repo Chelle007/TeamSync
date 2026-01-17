@@ -42,7 +42,7 @@ export async function GET(
 
     // Get profile info for each member using a function (bypasses RLS)
     const userIds = projectMembers?.map(m => m.user_id) || []
-    let profiles = []
+    let profiles: Array<{ id: string; email?: string; full_name?: string; role?: string; avatar_url?: string }> = []
     
     if (userIds.length > 0) {
       const { data: profileResult, error: profilesError } = await supabase.rpc('get_member_profiles', {
@@ -65,7 +65,7 @@ export async function GET(
     // Combine project members with their profiles
     const members = (projectMembers || []).map(member => ({
       ...member,
-      profiles: profiles?.find(p => p.id === member.user_id) || null
+      profiles: profiles?.find((p: { id: string }) => p.id === member.user_id) || null
     }))
 
     return NextResponse.json({ members })
