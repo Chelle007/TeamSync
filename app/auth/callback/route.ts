@@ -14,8 +14,16 @@ export async function GET(request: Request) {
       // Get the current user and update their metadata with the role
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
+        // Preserve existing metadata (like name from Google OAuth) and add/update role
+        const currentMetadata = user.user_metadata || {}
         await supabase.auth.updateUser({
-          data: { role: role }
+          data: { 
+            ...currentMetadata,
+            role: role,
+            // Preserve Google name if available
+            name: currentMetadata.name || currentMetadata.full_name || currentMetadata.name,
+            full_name: currentMetadata.full_name || currentMetadata.name || currentMetadata.full_name
+          }
         })
       }
       
