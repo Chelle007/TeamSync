@@ -20,6 +20,19 @@ function LoginForm() {
   const [password, setPassword] = useState("")
 
   useEffect(() => {
+    // Check if user is already logged in and redirect
+    async function checkAuth() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const userRole = user.user_metadata?.role || "developer"
+        router.push(userRole === "reviewer" ? "/demo-project" : "/")
+      }
+    }
+    checkAuth()
+  }, [router])
+
+  useEffect(() => {
     const roleParam = searchParams.get("role")
     if (roleParam === "reviewer" || roleParam === "developer") {
       setRole(roleParam)
@@ -90,12 +103,26 @@ function LoginForm() {
 
         toast.success("Check your email to confirm your account!")
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { error, data } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
 
         if (error) throw error
+
+        // Update user metadata with role if not already set
+        const currentUser = data.user
+        if (currentUser) {
+          const currentRole = currentUser.user_metadata?.role
+          if (!currentRole || currentRole !== role) {
+            const { error: updateError } = await supabase.auth.updateUser({
+              data: { role: role }
+            })
+            if (updateError) {
+              console.error("Failed to update user role:", updateError)
+            }
+          }
+        }
 
         toast.success("Welcome back!")
 
@@ -114,16 +141,6 @@ function LoginForm() {
     }
   }
 
-  const handleDemoLogin = () => {
-    // For hackathon demo - bypass auth
-    toast.success("Demo mode activated!")
-    if (role === "developer") {
-      router.push("/")
-    } else {
-      router.push("/demo-project")
-    }
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-background">
       {/* Decorative background */}
@@ -132,17 +149,8 @@ function LoginForm() {
       </div>
 
       <div className="w-full max-w-md space-y-6 animate-slide-up">
-        {/* Back link */}
-        <Link 
-          href="/" 
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to home
-        </Link>
-
         {/* Logo */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-center gap-2">
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-md">
             <Zap className="h-5 w-5 text-primary-foreground" />
           </div>
@@ -211,24 +219,6 @@ function LoginForm() {
                 <p className="text-center text-xs text-muted-foreground">
                   GitHub required for repository verification
                 </p>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">Or</span>
-                  </div>
-                </div>
-
-                <Button 
-                  variant="ghost" 
-                  className="w-full" 
-                  onClick={handleDemoLogin}
-                  disabled={isLoading !== null}
-                >
-                  Continue with Demo Mode
-                </Button>
               </>
             ) : (
               // Reviewer: Google + Email/Password
@@ -329,24 +319,6 @@ function LoginForm() {
                     {isSignUp ? "Sign in" : "Sign up"}
                   </button>
                 </p>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">Or</span>
-                  </div>
-                </div>
-
-                <Button 
-                  variant="ghost" 
-                  className="w-full" 
-                  onClick={handleDemoLogin}
-                  disabled={isLoading !== null}
-                >
-                  Continue with Demo Mode
-                </Button>
               </>
             )}
           </CardContent>
