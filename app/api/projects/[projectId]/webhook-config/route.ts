@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 
 export async function GET(
   request: Request,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
     const supabase = await createClient()
@@ -14,7 +14,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { projectId } = params
+    const { projectId } = await params
 
     // Get project with webhook secret
     const { data: project, error: projectError } = await supabase
@@ -46,7 +46,7 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
     const supabase = await createClient()
@@ -57,7 +57,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { projectId } = params
+    const { projectId } = await params
 
     // Regenerate webhook secret
     const { data: newSecret, error: regenerateError } = await supabase
