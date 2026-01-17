@@ -7,38 +7,139 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Zap, ArrowLeft, Loader2, FolderPlus, User, Globe, GitBranch } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { 
+  Zap, 
+  ArrowLeft, 
+  Loader2, 
+  FolderPlus, 
+  Globe, 
+  GitBranch,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Lock
+} from "lucide-react"
 import { toast } from "sonner"
+import { parseGitHubUrl, verifyGitHubRepoAccess, type GitHubRepoData } from "@/lib/github"
+import { createClient } from "@/utils/supabase/client"
+
+type RepoVerificationStatus = "idle" | "verifying" | "verified" | "error"
 
 export default function NewProjectPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
-    client: "",
     description: "",
     projectUrl: "",
     githubRepo: "",
   })
+  
+  // GitHub verification state
+  const [repoStatus, setRepoStatus] = useState<RepoVerificationStatus>("idle")
+  const [repoError, setRepoError] = useState<string>("")
+  const [repoData, setRepoData] = useState<GitHubRepoData | null>(null)
+
+  const verifyRepo = async () => {
+    if (!formData.githubRepo.trim()) {
+      setRepoStatus("idle")
+      setRepoError("")
+      setRepoData(null)
+      return
+    }
+
+    // Quick validation before API call
+    const parsed = parseGitHubUrl(formData.githubRepo)
+    if (!parsed) {
+      setRepoStatus("error")
+      setRepoError("Invalid GitHub URL format. Use: https://github.com/owner/repo")
+      setRepoData(null)
+      return
+    }
+
+    setRepoStatus("verifying")
+    setRepoError("")
+
+    try {
+      // Get the user's GitHub access token from Supabase session
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session?.provider_token) {
+        setRepoStatus("error")
+        setRepoError("Please sign in with GitHub to verify repository access.")
+        return
+      }
+
+      const result = await verifyGitHubRepoAccess(formData.githubRepo, session.provider_token)
+      
+      if (result.success && result.repoData) {
+        setRepoStatus("verified")
+        setRepoData(result.repoData)
+        setRepoError("")
+        
+        // Auto-fill project name if empty
+        if (!formData.name.trim() && result.repoData.name) {
+          setFormData(prev => ({
+            ...prev,
+            name: result.repoData!.name.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+          }))
+        }
+        
+        // Auto-fill description if empty
+        if (!formData.description.trim() && result.repoData.description) {
+          setFormData(prev => ({
+            ...prev,
+            description: result.repoData!.description || ""
+          }))
+        }
+      } else {
+        setRepoStatus("error")
+        setRepoError(result.error || "Failed to verify repository")
+        setRepoData(null)
+      }
+    } catch {
+      setRepoStatus("error")
+      setRepoError("Failed to verify repository. Please try again.")
+      setRepoData(null)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.name.trim() || !formData.client.trim()) {
-      toast.error("Please fill in the required fields")
+    if (!formData.name.trim()) {
+      toast.error("Please enter a project name")
+      return
+    }
+
+    // If GitHub repo is provided, it must be verified
+    if (formData.githubRepo.trim() && repoStatus !== "verified") {
+      toast.error("Please verify your GitHub repository access first")
       return
     }
 
     setIsLoading(true)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    try {
+      // TODO: Save to Supabase
+      // const supabase = createClient()
+      // const { data, error } = await supabase.from('projects').insert({...})
+      
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 1000))
 
-    toast.success("Project created successfully!")
-    
-    // Generate a slug from the project name
-    const slug = formData.name.toLowerCase().replace(/\s+/g, "-")
-    router.push(`/dashboard/${slug}/generate`)
+      toast.success("Project created successfully!")
+      
+      // Generate a slug from the project name
+      const slug = formData.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")
+      router.push(`/dashboard/${slug}/generate`)
+    } catch {
+      toast.error("Failed to create project. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -74,13 +175,93 @@ export default function NewProjectPage() {
               <div>
                 <CardTitle>Create New Project</CardTitle>
                 <CardDescription>
-                  Set up a new client project to start generating updates
+                  Set up a new project to start generating updates
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* GitHub Repo - First, for auto-fill */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="githubRepo">
+                  GitHub Repository
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <GitBranch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="githubRepo"
+                      type="text"
+                      placeholder="https://github.com/username/repo"
+                      value={formData.githubRepo}
+                      onChange={(e) => {
+                        setFormData({ ...formData, githubRepo: e.target.value })
+                        setRepoStatus("idle")
+                        setRepoError("")
+                        setRepoData(null)
+                      }}
+                      className="pl-10"
+                    />
+                  </div>
+                  <Button 
+                    type="button" 
+                    variant="outline"
+                    onClick={verifyRepo}
+                    disabled={!formData.githubRepo.trim() || repoStatus === "verifying"}
+                  >
+                    {repoStatus === "verifying" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : repoStatus === "verified" ? (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    ) : (
+                      "Verify"
+                    )}
+                  </Button>
+                </div>
+                
+                {/* Verification Status */}
+                {repoStatus === "verified" && repoData && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                        Repository verified
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {repoData.full_name}
+                        {repoData.private && (
+                          <Badge variant="secondary" className="ml-2 text-[10px] py-0">
+                            <Lock className="h-2.5 w-2.5 mr-1" />
+                            Private
+                          </Badge>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
+                {repoStatus === "error" && (
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                    <XCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                    <p className="text-sm text-destructive">{repoError}</p>
+                  </div>
+                )}
+
+                {repoStatus === "idle" && formData.githubRepo.trim() && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    Click "Verify" to check repository access
+                  </p>
+                )}
+                
+                {!formData.githubRepo.trim() && (
+                  <p className="text-xs text-muted-foreground">
+                    Link your GitHub repo to auto-fill project details and analyze commits
+                  </p>
+                )}
+              </div>
+
               {/* Project Name */}
               <div className="space-y-2">
                 <label className="text-sm font-medium" htmlFor="name">
@@ -93,24 +274,6 @@ export default function NewProjectPage() {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
                 />
-              </div>
-
-              {/* Client Name */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="client">
-                  Client Name <span className="text-destructive">*</span>
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="client"
-                    placeholder="e.g., Acme Corporation"
-                    value={formData.client}
-                    onChange={(e) => setFormData({ ...formData, client: e.target.value })}
-                    className="pl-10"
-                    required
-                  />
-                </div>
               </div>
 
               {/* Description */}
@@ -127,49 +290,25 @@ export default function NewProjectPage() {
                 />
               </div>
 
-              <div className="border-t pt-6">
-                <h3 className="text-sm font-medium mb-4">Project Links (Optional)</h3>
-                <p className="text-xs text-muted-foreground mb-4">
-                  Add these now or later when generating your first update
-                </p>
-
-                <div className="space-y-4">
-                  {/* Project URL */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="projectUrl">
-                      Staging/Preview URL
-                    </label>
-                    <div className="relative">
-                      <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="projectUrl"
-                        type="url"
-                        placeholder="https://staging.example.com"
-                        value={formData.projectUrl}
-                        onChange={(e) => setFormData({ ...formData, projectUrl: e.target.value })}
-                        className="pl-10"
-                      />
-                    </div>
-                  </div>
-
-                  {/* GitHub Repo */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="githubRepo">
-                      GitHub Repository
-                    </label>
-                    <div className="relative">
-                      <GitBranch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="githubRepo"
-                        type="url"
-                        placeholder="https://github.com/username/repo"
-                        value={formData.githubRepo}
-                        onChange={(e) => setFormData({ ...formData, githubRepo: e.target.value })}
-                        className="pl-10"
-                      />
-                    </div>
-                  </div>
+              {/* Project URL */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="projectUrl">
+                  Staging/Preview URL
+                </label>
+                <div className="relative">
+                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="projectUrl"
+                    type="url"
+                    placeholder="https://staging.example.com"
+                    value={formData.projectUrl}
+                    onChange={(e) => setFormData({ ...formData, projectUrl: e.target.value })}
+                    className="pl-10"
+                  />
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  The live site URL for video recordings
+                </p>
               </div>
 
               {/* Actions */}
@@ -177,7 +316,11 @@ export default function NewProjectPage() {
                 <Button type="button" variant="outline" className="flex-1" asChild>
                   <Link href="/dashboard">Cancel</Link>
                 </Button>
-                <Button type="submit" className="flex-1" disabled={isLoading}>
+                <Button 
+                  type="submit" 
+                  className="flex-1" 
+                  disabled={isLoading || (formData.githubRepo.trim() && repoStatus !== "verified")}
+                >
                   {isLoading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />

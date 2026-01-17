@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const role = searchParams.get('role') || 'freelancer'
+  const role = searchParams.get('role') || 'developer'
 
   if (code) {
     const supabase = await createClient()
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     
     if (!error) {
       // Redirect based on role
-      if (role === 'freelancer') {
+      if (role === 'developer') {
         return NextResponse.redirect(`${origin}/dashboard`)
       } else {
         return NextResponse.redirect(`${origin}/portal/demo-project`)

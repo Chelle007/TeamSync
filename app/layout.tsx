@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata = {
-  title: "TeamSync - Client Portal for Freelancers",
-  description: "Automate your weekly client updates with AI-powered video generation",
+  title: "TeamSync - Reviewer Portal for Developers",
+  description: "Automate your weekly reviewer updates with AI-powered video generation",
 }
 
 export default function RootLayout({

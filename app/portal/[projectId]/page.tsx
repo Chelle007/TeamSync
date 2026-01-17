@@ -48,13 +48,13 @@ const mockUpdates = [
   },
 ]
 
-export default function ClientPortal() {
+export default function ReviewerPortal() {
   const params = useParams()
   const projectId = params.projectId as string
   const [activeTab, setActiveTab] = useState("updates")
   
-  // For demo: toggle between client and freelancer view
-  const [isFreelancerView, setIsFreelancerView] = useState(false)
+  // For demo: toggle between reviewer and developer view
+  const [isDeveloperView, setIsDeveloperView] = useState(false)
 
   return (
     <div className="min-h-screen bg-background">
@@ -73,10 +73,10 @@ export default function ClientPortal() {
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => setIsFreelancerView(!isFreelancerView)}
+              onClick={() => setIsDeveloperView(!isDeveloperView)}
             >
               <Settings className="h-4 w-4" />
-              {isFreelancerView ? "Client View" : "Freelancer View"}
+              {isDeveloperView ? "Reviewer View" : "Developer View"}
             </Button>
             
             <Button variant="ghost" size="icon" className="relative">
@@ -105,13 +105,13 @@ export default function ClientPortal() {
                 <Badge variant="success">Active</Badge>
               </div>
               <p className="text-muted-foreground">
-                {isFreelancerView 
-                  ? "Manage updates and review client questions" 
+                {isDeveloperView 
+                  ? "Manage updates and review reviewer questions" 
                   : "View project updates and ask questions"}
               </p>
             </div>
             
-            {isFreelancerView && (
+            {isDeveloperView && (
               <Button asChild>
                 <Link href="/dashboard/generate">
                   Generate New Update
@@ -134,7 +134,7 @@ export default function ClientPortal() {
             <TabsTrigger value="chat" className="gap-2">
               <MessageSquare className="h-4 w-4" />
               AI Assistant
-              {isFreelancerView && (
+              {isDeveloperView && (
                 <Badge variant="warning" className="ml-1 text-[10px] py-0 px-1.5">
                   1
                 </Badge>
@@ -185,7 +185,7 @@ export default function ClientPortal() {
                   <p className="text-muted-foreground mb-4">
                     Updates will appear here once generated
                   </p>
-                  {isFreelancerView && (
+                  {isDeveloperView && (
                     <Button asChild>
                       <Link href="/dashboard/generate">Generate First Update</Link>
                     </Button>
@@ -201,7 +201,7 @@ export default function ClientPortal() {
               <div className="bg-card border rounded-xl p-6">
                 <ChatInterface 
                   projectId={projectId} 
-                  isFreelancer={isFreelancerView}
+                  isDeveloper={isDeveloperView}
                 />
               </div>
               
@@ -222,14 +222,14 @@ export default function ClientPortal() {
                   </div>
                 </div>
 
-                {isFreelancerView && (
+                {isDeveloperView && (
                   <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 space-y-2">
                     <h3 className="font-semibold text-sm flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-amber-500" />
                       Approval Mode Active
                     </h3>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Questions the AI isn't sure about will be flagged for your review before responding to the client.
+                      Questions the AI isn't sure about will be flagged for your review before responding to the reviewer.
                     </p>
                   </div>
                 )}
