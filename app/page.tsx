@@ -111,7 +111,13 @@ interface Project {
   createdAt: string
 }
 
-function ProjectCard({ project }: { project: Project }) {
+function ProjectCard({
+  project,
+  canGenerate,
+}: {
+  project: Project
+  canGenerate: boolean
+}) {
   const statusColors = {
     active: "bg-emerald-500",
     completed: "bg-blue-500",
@@ -142,14 +148,16 @@ function ProjectCard({ project }: { project: Project }) {
           </div>
         )}
         {/* Hover overlay */}
-        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-          <Button size="sm" variant="secondary" asChild>
-            <Link href={`/${project.id}/generate`}>
-              <Video className="h-4 w-4" />
-              Generate Update
-            </Link>
-          </Button>
-        </div>
+        {canGenerate && (
+          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+            <Button size="sm" variant="secondary" asChild>
+              <Link href={`/${project.id}/generate`}>
+                <Video className="h-4 w-4" />
+                Generate Update
+              </Link>
+            </Button>
+          </div>
+        )}
       </div>
 
       <CardContent className="p-4 space-y-3">
@@ -219,11 +227,13 @@ function ProjectCard({ project }: { project: Project }) {
               <ExternalLink className="h-3 w-3" />
             </Link>
           </Button>
-          <Button size="sm" className="flex-1 text-xs h-8" asChild>
-            <Link href={`/${project.id}/generate`}>
-              New Update
-            </Link>
-          </Button>
+          {canGenerate && (
+            <Button size="sm" className="flex-1 text-xs h-8" asChild>
+              <Link href={`/${project.id}/generate`}>
+                New Update
+              </Link>
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -439,12 +449,6 @@ export default function ProjectsDashboard() {
       if (user) {
         const role = user.user_metadata?.role || "developer"
         setUserRole(role === "reviewer" ? "reviewer" : "developer")
-        
-        // If reviewer, redirect to reviewer dashboard (fallback if middleware didn't catch it)
-        if (role === "reviewer" && window.location.pathname === "/") {
-          router.replace("/demo-project")
-          return
-        }
       } else {
         // If not logged in, redirect to login
         router.replace("/login")
@@ -453,8 +457,15 @@ export default function ProjectsDashboard() {
     fetchUserRole()
   }, [router])
 
-  const activeProjects = mockProjects.filter((p) => p.status === "active")
-  const completedProjects = mockProjects.filter((p) => p.status === "completed")
+  const reviewerProjectIds = ["demo-project", "batam-spa"]
+  const visibleProjects =
+    userRole === "reviewer"
+      ? mockProjects.filter((p) => reviewerProjectIds.includes(p.id))
+      : userRole === "developer"
+      ? mockProjects
+      : []
+  const activeProjects = visibleProjects.filter((p) => p.status === "active")
+  const completedProjects = visibleProjects.filter((p) => p.status === "completed")
 
   const filterProjects = (projects: Project[]) => {
     if (!searchQuery) return projects
@@ -505,19 +516,21 @@ export default function ProjectsDashboard() {
               Manage your projects and generate updates
             </p>
           </div>
-          <Button asChild>
-            <Link href="/new">
-              <Plus className="h-4 w-4" />
-              New Project
-            </Link>
-          </Button>
+          {userRole === "developer" && (
+            <Button asChild>
+              <Link href="/new">
+                <Plus className="h-4 w-4" />
+                New Project
+              </Link>
+            </Button>
+          )}
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {[
             { label: "Active Projects", value: activeProjects.length, icon: FolderOpen, color: "text-emerald-500" },
-            { label: "Total Updates", value: mockProjects.reduce((acc, p) => acc + p.updatesCount, 0), icon: Video, color: "text-blue-500" },
+            { label: "Total Updates", value: visibleProjects.reduce((acc, p) => acc + p.updatesCount, 0), icon: Video, color: "text-blue-500" },
             { label: "Completed", value: completedProjects.length, icon: TrendingUp, color: "text-violet-500" },
             { label: "This Month", value: 12, icon: Calendar, color: "text-amber-500" },
           ].map((stat) => (
@@ -590,7 +603,11 @@ export default function ProjectsDashboard() {
             {filterProjects(activeProjects).length > 0 ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filterProjects(activeProjects).map((project) => (
-                  <ProjectCard key={project.id} project={project} />
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    canGenerate={userRole === "developer"}
+                  />
                 ))}
               </div>
             ) : (
@@ -602,7 +619,11 @@ export default function ProjectsDashboard() {
             {filterProjects(completedProjects).length > 0 ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filterProjects(completedProjects).map((project) => (
-                  <ProjectCard key={project.id} project={project} />
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    canGenerate={userRole === "developer"}
+                  />
                 ))}
               </div>
             ) : (
@@ -611,10 +632,14 @@ export default function ProjectsDashboard() {
           </TabsContent>
 
           <TabsContent value="all">
-            {filterProjects(mockProjects).length > 0 ? (
+            {filterProjects(visibleProjects).length > 0 ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filterProjects(mockProjects).map((project) => (
-                  <ProjectCard key={project.id} project={project} />
+                {filterProjects(visibleProjects).map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    canGenerate={userRole === "developer"}
+                  />
                 ))}
               </div>
             ) : (
