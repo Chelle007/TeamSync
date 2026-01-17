@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -19,13 +20,15 @@ import {
   Loader2,
   Video,
   ExternalLink,
-  LayoutDashboard
+  ChevronLeft,
+  FolderOpen
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
 // Placeholder function for backend integration
 async function triggerUpdateGeneration(data: {
+  projectId: string
   projectUrl: string
   githubRepo: string
   notes: string
@@ -58,14 +61,30 @@ const steps = [
   },
 ]
 
+// Mock project data (in real app, fetch from Supabase)
+const getProjectData = (projectId: string) => {
+  const projects: Record<string, { name: string; description?: string; projectUrl?: string; githubRepo?: string }> = {
+    "batam-spa": { name: "Batam1SPA Website", description: "Wellness and spa booking platform", projectUrl: "https://batam1spa.com", githubRepo: "https://github.com/batam/spa-web" },
+    "krit-design": { name: "Krit Design Club", description: "Design agency portfolio", projectUrl: "https://krit.design" },
+    "demo-project": { name: "E-commerce Platform", description: "Full-stack e-commerce solution", projectUrl: "https://staging.techstart.io" },
+    "fitness-app": { name: "FitTrack Mobile App", description: "Fitness tracking app" },
+    "restaurant-site": { name: "Sakura Restaurant", description: "Japanese restaurant website" },
+  }
+  return projects[projectId] || { name: projectId.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()) }
+}
+
 export default function GeneratorWizard() {
+  const params = useParams()
+  const projectId = params.projectId as string
+  const projectData = getProjectData(projectId)
+
   const [currentStep, setCurrentStep] = useState(1)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isComplete, setIsComplete] = useState(false)
   
-  // Form state
-  const [projectUrl, setProjectUrl] = useState("")
-  const [githubRepo, setGithubRepo] = useState("")
+  // Form state - pre-fill with project data if available
+  const [projectUrl, setProjectUrl] = useState(projectData.projectUrl || "")
+  const [githubRepo, setGithubRepo] = useState(projectData.githubRepo || "")
   const [notes, setNotes] = useState("")
 
   const handleNext = () => {
@@ -88,6 +107,7 @@ export default function GeneratorWizard() {
 
     try {
       await triggerUpdateGeneration({
+        projectId,
         projectUrl,
         githubRepo,
         notes,
@@ -105,8 +125,6 @@ export default function GeneratorWizard() {
   const resetForm = () => {
     setCurrentStep(1)
     setIsComplete(false)
-    setProjectUrl("")
-    setGithubRepo("")
     setNotes("")
   }
 
@@ -122,13 +140,10 @@ export default function GeneratorWizard() {
             <span className="text-xl font-bold tracking-tight">TeamSync</span>
           </Link>
           <div className="flex items-center gap-3">
-            <Badge variant="secondary" className="gap-1">
-              <LayoutDashboard className="h-3 w-3" />
-              Freelancer Dashboard
-            </Badge>
+            <span className="text-sm font-medium text-muted-foreground">Generate Update</span>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/portal/demo-project">
-                View Client Portal
+              <Link href={`/${projectId}`}>
+                View Reviewer Portal
                 <ExternalLink className="h-3 w-3" />
               </Link>
             </Button>
@@ -136,13 +151,32 @@ export default function GeneratorWizard() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-6 py-12">
-        {/* Page title */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Generate Update</h1>
-          <p className="text-muted-foreground">
-            Create an AI-powered video update for your client
-          </p>
+      <main className="max-w-3xl mx-auto px-6 py-8">
+        {/* Back to projects */}
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Back to Projects
+        </Link>
+
+        {/* Project Info */}
+        <div className="mb-8 p-4 rounded-lg bg-muted/50 border">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <FolderOpen className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold">{projectData.name}</h1>
+              {projectData.description && (
+                <p className="text-sm text-muted-foreground">{projectData.description}</p>
+              )}
+            </div>
+            <Badge variant="secondary" className="ml-auto">
+              New Update
+            </Badge>
+          </div>
         </div>
 
         {/* Progress Steps */}
@@ -363,7 +397,7 @@ export default function GeneratorWizard() {
                         {[
                           { icon: Video, text: "Video walkthrough of changes" },
                           { icon: FileText, text: "Google Doc with technical summary" },
-                          { icon: Sparkles, text: "AI-powered summary for clients" },
+                          { icon: Sparkles, text: "AI-powered summary for reviewers" },
                         ].map((item) => (
                           <div key={item.text} className="flex items-center gap-2 text-sm">
                             <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center">
@@ -426,18 +460,23 @@ export default function GeneratorWizard() {
                 <div className="space-y-2">
                   <h2 className="text-2xl font-bold">Update Generated!</h2>
                   <p className="text-muted-foreground max-w-md mx-auto">
-                    Your video update has been created and is now available in the client portal.
+                    Your video update for <strong>{projectData.name}</strong> has been created and is now available in the reviewer portal.
                   </p>
                 </div>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                   <Button asChild>
-                    <Link href="/portal/demo-project">
+                    <Link href={`/${projectId}`}>
                       View in Portal
                       <ExternalLink className="h-4 w-4" />
                     </Link>
                   </Button>
                   <Button variant="outline" onClick={resetForm}>
                     Generate Another
+                  </Button>
+                  <Button variant="ghost" asChild>
+                    <Link href="/">
+                      Back to Projects
+                    </Link>
                   </Button>
                 </div>
               </div>

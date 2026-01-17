@@ -1,20 +1,28 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { UpdateCard } from "@/components/update-card"
 import { ChatInterface } from "@/components/chat-interface"
+import { createClient } from "@/utils/supabase/client"
+import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 import { 
   Zap, 
   Video, 
   MessageSquare, 
-  Settings,
   Bell,
-  User
+  User,
+  LogOut,
+  Edit2,
+  Check,
+  X,
 } from "lucide-react"
 
 // Mock data for demo
@@ -48,13 +56,221 @@ const mockUpdates = [
   },
 ]
 
-export default function ClientPortal() {
+// User Profile Dropdown Component
+function UserProfileDropdown() {
+  const [isOpen, setIsOpen] = useState(false)
+  const [user, setUser] = useState<{ email?: string; name?: string } | null>(null)
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [editedName, setEditedName] = useState("")
+  const [isSaving, setIsSaving] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
+
+  useEffect(() => {
+    async function fetchUser() {
+      const supabase = createClient()
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      if (authUser) {
+        const userName = authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email?.split("@")[0] || "User"
+        setUser({
+          email: authUser.email,
+          name: userName
+        })
+        setEditedName(userName)
+      }
+    }
+    fetchUser()
+  }, [])
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [isOpen])
+
+  const handleSignOut = async () => {
+    const supabase = createClient()
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      toast.error("Failed to sign out")
+    } else {
+      toast.success("Signed out successfully")
+      router.push("/login")
+    }
+  }
+
+  const handleEditName = () => {
+    setIsEditingName(true)
+    setEditedName(user?.name || "")
+  }
+
+  const handleCancelEdit = () => {
+    setIsEditingName(false)
+    setEditedName(user?.name || "")
+  }
+
+  const handleSaveName = async () => {
+    if (!editedName.trim()) {
+      toast.error("Name cannot be empty")
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const supabase = createClient()
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      
+      if (authUser) {
+        const { error } = await supabase.auth.updateUser({
+          data: {
+            ...authUser.user_metadata,
+            full_name: editedName.trim(),
+            name: editedName.trim()
+          }
+        })
+
+        if (error) throw error
+
+        setUser({
+          ...user,
+          name: editedName.trim()
+        })
+        setIsEditingName(false)
+        toast.success("Name updated successfully")
+      }
+    } catch (error) {
+      toast.error("Failed to update name")
+      console.error(error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <Button 
+        variant="ghost" 
+        size="icon"
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          "transition-colors",
+          isOpen && "bg-muted"
+        )}
+      >
+        <User className="h-5 w-5" />
+      </Button>
+
+      {isOpen && (
+        <Card className="absolute right-0 top-12 w-64 shadow-lg border z-50 animate-slide-up">
+          <CardContent className="p-4 space-y-4">
+            {/* User Info */}
+            <div className="space-y-3 pb-3 border-b">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <User className="h-5 w-5 text-primary" />
+                </div>
+                <div className="min-w-0 flex-1 space-y-1">
+                  {isEditingName ? (
+                    <div className="space-y-2">
+                      <Input
+                        value={editedName}
+                        onChange={(e) => setEditedName(e.target.value)}
+                        className="h-8 text-sm"
+                        disabled={isSaving}
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleSaveName()
+                          if (e.key === "Escape") handleCancelEdit()
+                        }}
+                      />
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 px-2"
+                          onClick={handleSaveName}
+                          disabled={isSaving}
+                        >
+                          <Check className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2"
+                          onClick={handleCancelEdit}
+                          disabled={isSaving}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold text-sm truncate">
+                        {user?.name || "User"}
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0"
+                        onClick={handleEditName}
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground truncate">
+                    {user?.email || ""}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Logout Button */}
+            <Button 
+              variant="outline" 
+              className="w-full justify-start"
+              onClick={handleSignOut}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}
+
+export default function ReviewerPortal() {
   const params = useParams()
   const projectId = params.projectId as string
   const [activeTab, setActiveTab] = useState("updates")
+  const [userRole, setUserRole] = useState<"developer" | "reviewer" | null>(null)
   
-  // For demo: toggle between client and freelancer view
-  const [isFreelancerView, setIsFreelancerView] = useState(false)
+  useEffect(() => {
+    async function fetchUserRole() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const role = user.user_metadata?.role || "reviewer"
+        setUserRole(role === "developer" ? "developer" : "reviewer")
+      }
+    }
+    fetchUserRole()
+  }, [])
+  
+  const isDeveloperView = userRole === "developer"
 
   return (
     <div className="min-h-screen bg-background">
@@ -69,16 +285,11 @@ export default function ClientPortal() {
           </Link>
           
           <div className="flex items-center gap-3">
-            {/* Demo toggle */}
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setIsFreelancerView(!isFreelancerView)}
-            >
-              <Settings className="h-4 w-4" />
-              {isFreelancerView ? "Client View" : "Freelancer View"}
-            </Button>
-            
+            {userRole && (
+              <span className="text-sm font-medium text-muted-foreground capitalize">
+                {userRole}
+              </span>
+            )}
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-accent text-[10px] font-bold flex items-center justify-center text-accent-foreground">
@@ -86,9 +297,7 @@ export default function ClientPortal() {
               </span>
             </Button>
             
-            <Button variant="ghost" size="icon">
-              <User className="h-5 w-5" />
-            </Button>
+            <UserProfileDropdown />
           </div>
         </div>
       </header>
@@ -105,15 +314,15 @@ export default function ClientPortal() {
                 <Badge variant="success">Active</Badge>
               </div>
               <p className="text-muted-foreground">
-                {isFreelancerView 
-                  ? "Manage updates and review client questions" 
+                {isDeveloperView 
+                  ? "Manage updates and review reviewer questions" 
                   : "View project updates and ask questions"}
               </p>
             </div>
             
-            {isFreelancerView && (
+            {isDeveloperView && (
               <Button asChild>
-                <Link href="/dashboard/generate">
+                <Link href="/generate">
                   Generate New Update
                 </Link>
               </Button>
@@ -134,7 +343,7 @@ export default function ClientPortal() {
             <TabsTrigger value="chat" className="gap-2">
               <MessageSquare className="h-4 w-4" />
               AI Assistant
-              {isFreelancerView && (
+              {isDeveloperView && (
                 <Badge variant="warning" className="ml-1 text-[10px] py-0 px-1.5">
                   1
                 </Badge>
@@ -185,9 +394,9 @@ export default function ClientPortal() {
                   <p className="text-muted-foreground mb-4">
                     Updates will appear here once generated
                   </p>
-                  {isFreelancerView && (
+                  {isDeveloperView && (
                     <Button asChild>
-                      <Link href="/dashboard/generate">Generate First Update</Link>
+                      <Link href="/generate">Generate First Update</Link>
                     </Button>
                   )}
                 </div>
@@ -201,7 +410,7 @@ export default function ClientPortal() {
               <div className="bg-card border rounded-xl p-6">
                 <ChatInterface 
                   projectId={projectId} 
-                  isFreelancer={isFreelancerView}
+                  isDeveloper={isDeveloperView}
                 />
               </div>
               
@@ -222,14 +431,14 @@ export default function ClientPortal() {
                   </div>
                 </div>
 
-                {isFreelancerView && (
+                {isDeveloperView && (
                   <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 space-y-2">
                     <h3 className="font-semibold text-sm flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-amber-500" />
                       Approval Mode Active
                     </h3>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Questions the AI isn't sure about will be flagged for your review before responding to the client.
+                      Questions the AI isn't sure about will be flagged for your review before responding to the reviewer.
                     </p>
                   </div>
                 )}
