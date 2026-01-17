@@ -209,11 +209,31 @@ export async function POST(
 
     console.log('✅ Update stored:', update.id)
 
+    // Step 8: Update project progress
+    console.log('📊 Step 8: Updating project progress...')
+    let newProgress = null
+    try {
+      const progressResponse = await fetch(`${baseUrl}/api/projects/${projectId}/analyze-progress`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (progressResponse.ok) {
+        const progressData = await progressResponse.json()
+        newProgress = progressData.progress
+        console.log(`✅ Progress updated: ${newProgress}%`)
+      } else {
+        console.warn('⚠️ Progress update failed (non-critical)')
+      }
+    } catch (progressError) {
+      console.warn('⚠️ Progress update failed (non-critical):', progressError instanceof Error ? progressError.message : progressError)
+    }
+
     // Update webhook event status to completed
     await updateWebhookEventStatus(webhookEventId, 'completed')
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2)
-    console.log(`🎉 Video + Google Doc generation completed in ${duration}s`)
+    console.log(`🎉 Video + Doc + Progress update completed in ${duration}s`)
 
     return NextResponse.json({
       success: true,
@@ -225,6 +245,7 @@ export async function POST(
         doc_url: update.doc_url,
         summary: update.summary,
       },
+      progress: newProgress,
       assets: {
         audioPath: ttsData.audioPath,
         videoPath: recordData.videoPath,
