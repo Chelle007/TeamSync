@@ -99,12 +99,39 @@ export async function POST(request) {
     const combineData = await combineResponse.json();
     console.log('✅ Final video created:', combineData.finalVideoPath);
 
-    // Step 5: Return complete result
+    // Step 5: Generate PDF/HTML document with screenshots and captions
+    console.log('📄 Step 5: Generating document...');
+    let docData = null;
+    try {
+      const docResponse = await fetch(`${baseUrl}/api/generate-pdf-doc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reportKey: reportKey,
+          projectName: projectId,
+          script: summaryData.script,
+          changes: summaryData.changes,
+        }),
+      });
+
+      if (docResponse.ok) {
+        docData = await docResponse.json();
+        console.log('✅ Document generated:', docData.documentUrl);
+      } else {
+        const errorText = await docResponse.text();
+        console.warn('⚠️ Document generation failed (non-critical):', errorText);
+      }
+    } catch (docError) {
+      console.warn('⚠️ Document generation failed (non-critical):', docError.message);
+    }
+
+    // Step 6: Return complete result
     const result = {
       success: true,
       projectId,
       reportKey,
       finalVideoUrl: combineData.finalVideoPath,
+      docUrl: docData?.documentUrl || null,
       summary: {
         script: summaryData.script,
         changes: summaryData.changes,
@@ -113,6 +140,7 @@ export async function POST(request) {
         audioPath: ttsData.audioPath,
         videoPath: recordData.videoPath,
         finalVideoPath: combineData.finalVideoPath,
+        docPath: docData?.documentPath || null,
       },
       durations: {
         videoDuration: combineData.videoDuration,
@@ -121,7 +149,7 @@ export async function POST(request) {
       generatedAt: new Date().toISOString(),
     };
 
-    console.log('🎉 Full video generation completed successfully!');
+    console.log('🎉 Full video + document generation completed successfully!');
     return new Response(JSON.stringify(result), { status: 200 });
 
   } catch (error) {
