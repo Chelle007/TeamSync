@@ -8,6 +8,14 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
 import { UpdateCard } from "@/components/update-card"
 import { ChatInterface } from "@/components/chat-interface"
 import { createClient } from "@/utils/supabase/client"
@@ -272,6 +280,8 @@ export default function ReviewerPortal() {
   const [editedFileName, setEditedFileName] = useState<string>("")
   const [isRenaming, setIsRenaming] = useState(false)
   const [isDeleting, setIsDeleting] = useState<string | null>(null)
+  const [isDeletingProject, setIsDeletingProject] = useState(false)
+  const [deleteProjectDialogOpen, setDeleteProjectDialogOpen] = useState(false)
   
   useEffect(() => {
     async function fetchData() {
@@ -316,6 +326,16 @@ export default function ReviewerPortal() {
         }
 
         setProject(projectData)
+
+        // Check if user is project owner
+        const { data: projectUser } = await supabase
+          .from("project_user")
+          .select("is_owner")
+          .eq("project_id", projectId)
+          .eq("user_id", user.id)
+          .maybeSingle()
+
+        setIsProjectOwner(projectUser?.is_owner || false)
       } catch (error) {
         console.error("Error:", error)
         toast.error("Failed to load project")
@@ -503,6 +523,52 @@ export default function ReviewerPortal() {
       toast.error(error instanceof Error ? error.message : "Failed to delete file")
     } finally {
       setIsDeleting(null)
+    }
+  }
+
+  const handleDeleteProject = async () => {
+    setIsDeletingProject(true)
+    try {
+      const supabase = createClient()
+      
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast.error("Please sign in to delete projects")
+        return
+      }
+
+      // Delete project_user relationship first
+      const { error: projectUserError } = await supabase
+        .from("project_user")
+        .delete()
+        .eq("project_id", projectId)
+
+      if (projectUserError) {
+        console.error("Error deleting project_user:", projectUserError)
+        // Continue anyway
+      }
+
+      // Delete the project
+      const { error: deleteError } = await supabase
+        .from("projects")
+        .delete()
+        .eq("id", projectId)
+
+      if (deleteError) {
+        throw deleteError
+      }
+
+      toast.success("Project deleted successfully")
+      
+      // Redirect to home page
+      router.push("/")
+    } catch (error) {
+      console.error("Error deleting project:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to delete project")
+    } finally {
+      setIsDeletingProject(false)
+      setDeleteProjectDialogOpen(false)
     }
   }
 
@@ -709,11 +775,51 @@ export default function ReviewerPortal() {
             project={project}
             projectDetails={projectDetails}
             projectId={projectId}
+            onDeleteProject={() => setDeleteProjectDialogOpen(true)}
+            isDeletingProject={isDeletingProject}
           />
         </Tabs>
           </div>
         </div>
       </main>
+
+      {/* Delete Project Confirmation Dialog */}
+      <Dialog open={deleteProjectDialogOpen} onOpenChange={setDeleteProjectDialogOpen}>
+        <DialogContent onClose={() => setDeleteProjectDialogOpen(false)}>
+          <DialogHeader>
+            <DialogTitle>Delete Project</DialogTitle>
+            <DialogDescription className="pt-2">
+              Are you sure you want to delete <strong>{project?.name}</strong>? This action cannot be undone and will permanently delete the project, all updates, and all associated data.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteProjectDialogOpen(false)}
+              disabled={isDeletingProject}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteProject}
+              disabled={isDeletingProject}
+            >
+              {isDeletingProject ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Project
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
