@@ -63,14 +63,14 @@ const steps = [
 
 // Mock project data (in real app, fetch from Supabase)
 const getProjectData = (projectId: string) => {
-  const projects: Record<string, { name: string; client: string; projectUrl?: string; githubRepo?: string }> = {
-    "batam-spa": { name: "Batam1SPA Website", client: "Batam Wellness Co.", projectUrl: "https://batam1spa.com", githubRepo: "https://github.com/batam/spa-web" },
-    "krit-design": { name: "Krit Design Club", client: "Krit Agency", projectUrl: "https://krit.design" },
-    "demo-project": { name: "E-commerce Platform", client: "TechStart Inc.", projectUrl: "https://staging.techstart.io" },
-    "fitness-app": { name: "FitTrack Mobile App", client: "FitLife Studios" },
-    "restaurant-site": { name: "Sakura Restaurant", client: "Sakura Group" },
+  const projects: Record<string, { name: string; description?: string; projectUrl?: string; githubRepo?: string }> = {
+    "batam-spa": { name: "Batam1SPA Website", description: "Wellness and spa booking platform", projectUrl: "https://batam1spa.com", githubRepo: "https://github.com/batam/spa-web" },
+    "krit-design": { name: "Krit Design Club", description: "Design agency portfolio", projectUrl: "https://krit.design" },
+    "demo-project": { name: "E-commerce Platform", description: "Full-stack e-commerce solution", projectUrl: "https://staging.techstart.io" },
+    "fitness-app": { name: "FitTrack Mobile App", description: "Fitness tracking app" },
+    "restaurant-site": { name: "Sakura Restaurant", description: "Japanese restaurant website" },
   }
-  return projects[projectId] || { name: projectId.replace(/-/g, " "), client: "Client" }
+  return projects[projectId] || { name: projectId.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()) }
 }
 
 export default function GeneratorWizard() {
@@ -142,7 +142,7 @@ export default function GeneratorWizard() {
           <div className="flex items-center gap-3">
             <Button variant="outline" size="sm" asChild>
               <Link href={`/portal/${projectId}`}>
-                View Client Portal
+                View Reviewer Portal
                 <ExternalLink className="h-3 w-3" />
               </Link>
             </Button>
@@ -168,7 +168,9 @@ export default function GeneratorWizard() {
             </div>
             <div>
               <h1 className="text-lg font-semibold">{projectData.name}</h1>
-              <p className="text-sm text-muted-foreground">{projectData.client}</p>
+              {projectData.description && (
+                <p className="text-sm text-muted-foreground">{projectData.description}</p>
+              )}
             </div>
             <Badge variant="secondary" className="ml-auto">
               New Update
@@ -394,7 +396,7 @@ export default function GeneratorWizard() {
                         {[
                           { icon: Video, text: "Video walkthrough of changes" },
                           { icon: FileText, text: "Google Doc with technical summary" },
-                          { icon: Sparkles, text: "AI-powered summary for clients" },
+                          { icon: Sparkles, text: "AI-powered summary for reviewers" },
                         ].map((item) => (
                           <div key={item.text} className="flex items-center gap-2 text-sm">
                             <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center">
@@ -457,7 +459,7 @@ export default function GeneratorWizard() {
                 <div className="space-y-2">
                   <h2 className="text-2xl font-bold">Update Generated!</h2>
                   <p className="text-muted-foreground max-w-md mx-auto">
-                    Your video update for <strong>{projectData.name}</strong> has been created and is now available in the client portal.
+                    Your video update for <strong>{projectData.name}</strong> has been created and is now available in the reviewer portal.
                   </p>
                 </div>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">

@@ -4,36 +4,32 @@ import { useState, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Zap, ArrowLeft, Loader2, Github, Chrome, Mail, Lock } from "lucide-react"
+import { Zap, ArrowLeft, Loader2, Github } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { toast } from "sonner"
 
 function LoginForm() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const [role, setRole] = useState<"freelancer" | "client">("freelancer")
-  const [isLoading, setIsLoading] = useState<"github" | "google" | "email" | null>(null)
-  const [isSignUp, setIsSignUp] = useState(false)
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const [role, setRole] = useState<"developer" | "reviewer">("developer")
+  const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     const roleParam = searchParams.get("role")
-    if (roleParam === "client" || roleParam === "freelancer") {
+    if (roleParam === "reviewer" || roleParam === "developer") {
       setRole(roleParam)
     }
   }, [searchParams])
 
-  const handleOAuthSignIn = async (provider: "github" | "google") => {
-    setIsLoading(provider)
+  const handleGitHubSignIn = async () => {
+    setIsLoading(true)
 
     try {
       const supabase = createClient()
 
       const { error } = await supabase.auth.signInWithOAuth({
-        provider,
+        provider: "github",
         options: {
           redirectTo: `${window.location.origin}/auth/callback?role=${role}`,
         },
@@ -43,60 +39,14 @@ function LoginForm() {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Authentication failed"
       toast.error(errorMessage)
-      setIsLoading(null)
-    }
-  }
-
-  const handleEmailAuth = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading("email")
-
-    try {
-      const supabase = createClient()
-
-      if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              role: role,
-            },
-          },
-        })
-
-        if (error) throw error
-
-        toast.success("Check your email to confirm your account!")
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-
-        if (error) throw error
-
-        toast.success("Welcome back!")
-
-        // Redirect based on role
-        if (role === "freelancer") {
-          router.push("/dashboard")
-        } else {
-          router.push("/portal/demo-project")
-        }
-      }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Authentication failed"
-      toast.error(errorMessage)
-    } finally {
-      setIsLoading(null)
+      setIsLoading(false)
     }
   }
 
   const handleDemoLogin = () => {
     // For hackathon demo - bypass auth
     toast.success("Demo mode activated!")
-    if (role === "freelancer") {
+    if (role === "developer") {
       router.push("/dashboard")
     } else {
       router.push("/portal/demo-project")
@@ -132,142 +82,63 @@ function LoginForm() {
         <div className="flex rounded-lg bg-muted p-1">
           <button
             type="button"
-            onClick={() => setRole("freelancer")}
+            onClick={() => setRole("developer")}
             className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all cursor-pointer ${
-              role === "freelancer"
+              role === "developer"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Freelancer
+            Developer
           </button>
           <button
             type="button"
-            onClick={() => setRole("client")}
+            onClick={() => setRole("reviewer")}
             className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all cursor-pointer ${
-              role === "client"
+              role === "reviewer"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Client
+            Reviewer
           </button>
         </div>
 
         {/* Auth Card */}
         <Card>
           <CardHeader className="text-center pb-4">
-            <CardTitle>{isSignUp ? "Create account" : "Welcome back"}</CardTitle>
+            <CardTitle>Welcome to TeamSync</CardTitle>
             <CardDescription>
-              {role === "freelancer"
-                ? "Generate AI-powered updates for your clients"
+              {role === "developer"
+                ? "Generate AI-powered updates for your reviewers"
                 : "View project updates and ask questions"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* OAuth Buttons */}
-            <div className="grid grid-cols-2 gap-3">
-              <Button 
-                variant="outline"
-                onClick={() => handleOAuthSignIn("github")}
-                disabled={isLoading !== null}
-              >
-                {isLoading === "github" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Github className="h-4 w-4" />
-                )}
-                GitHub
-              </Button>
+            {/* GitHub Sign In */}
+            <Button 
+              className="w-full" 
+              size="lg"
+              onClick={handleGitHubSignIn}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Connecting...
+                </>
+              ) : (
+                <>
+                  <Github className="h-5 w-5" />
+                  Continue with GitHub
+                </>
+              )}
+            </Button>
 
-              <Button 
-                variant="outline"
-                onClick={() => handleOAuthSignIn("google")}
-                disabled={isLoading !== null}
-              >
-                {isLoading === "google" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Chrome className="h-4 w-4" />
-                )}
-                Google
-              </Button>
-            </div>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">Or continue with email</span>
-              </div>
-            </div>
-
-            {/* Email/Password Form */}
-            <form onSubmit={handleEmailAuth} className="space-y-3">
-              <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="email">
-                  Email
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10"
-                    required
-                    disabled={isLoading !== null}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="password">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10"
-                    required
-                    minLength={6}
-                    disabled={isLoading !== null}
-                  />
-                </div>
-              </div>
-
-              <Button type="submit" className="w-full" disabled={isLoading !== null}>
-                {isLoading === "email" ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Please wait...
-                  </>
-                ) : isSignUp ? (
-                  "Create account"
-                ) : (
-                  "Sign in"
-                )}
-              </Button>
-            </form>
-
-            <p className="text-center text-sm text-muted-foreground">
-              {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
-              <button
-                type="button"
-                onClick={() => setIsSignUp(!isSignUp)}
-                className="text-primary hover:underline font-medium cursor-pointer"
-                disabled={isLoading !== null}
-              >
-                {isSignUp ? "Sign in" : "Sign up"}
-              </button>
+            <p className="text-center text-xs text-muted-foreground">
+              {role === "developer" 
+                ? "GitHub required for repository verification"
+                : "Sign in with your GitHub account"}
             </p>
 
             <div className="relative">
@@ -284,7 +155,7 @@ function LoginForm() {
               variant="ghost" 
               className="w-full" 
               onClick={handleDemoLogin}
-              disabled={isLoading !== null}
+              disabled={isLoading}
             >
               Continue with Demo Mode
             </Button>

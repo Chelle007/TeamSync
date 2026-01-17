@@ -21,6 +21,7 @@ import {
   FolderOpen,
   User,
   Bell,
+  GitBranch,
 } from "lucide-react"
 
 // Mock data for projects
@@ -28,7 +29,8 @@ const mockProjects = [
   {
     id: "batam-spa",
     name: "Batam1SPA Website",
-    client: "Batam Wellness Co.",
+    description: "Wellness and spa booking platform",
+    githubRepo: "batam/spa-website",
     thumbnail: null,
     progress: 95,
     status: "active" as const,
@@ -39,7 +41,8 @@ const mockProjects = [
   {
     id: "krit-design",
     name: "Krit Design Club",
-    client: "Krit Agency",
+    description: "Design agency portfolio site",
+    githubRepo: "krit/design-club",
     thumbnail: null,
     progress: 70,
     status: "active" as const,
@@ -50,7 +53,8 @@ const mockProjects = [
   {
     id: "demo-project",
     name: "E-commerce Platform",
-    client: "TechStart Inc.",
+    description: "Full-stack e-commerce solution",
+    githubRepo: "techstart/ecommerce",
     thumbnail: null,
     progress: 45,
     status: "active" as const,
@@ -61,7 +65,8 @@ const mockProjects = [
   {
     id: "fitness-app",
     name: "FitTrack Mobile App",
-    client: "FitLife Studios",
+    description: "Fitness tracking and workout app",
+    githubRepo: "fitlife/fittrack-app",
     thumbnail: null,
     progress: 100,
     status: "completed" as const,
@@ -72,7 +77,8 @@ const mockProjects = [
   {
     id: "restaurant-site",
     name: "Sakura Restaurant",
-    client: "Sakura Group",
+    description: "Japanese restaurant website",
+    githubRepo: "sakura/website",
     thumbnail: null,
     progress: 100,
     status: "completed" as const,
@@ -87,7 +93,8 @@ type ProjectStatus = "active" | "completed" | "paused"
 interface Project {
   id: string
   name: string
-  client: string
+  description?: string
+  githubRepo?: string
   thumbnail: string | null
   progress: number
   status: ProjectStatus
@@ -147,7 +154,14 @@ function ProjectCard({ project }: { project: Project }) {
             >
               {project.name}
             </Link>
-            <p className="text-xs text-muted-foreground truncate">{project.client}</p>
+            {project.githubRepo ? (
+              <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                <GitBranch className="h-3 w-3" />
+                {project.githubRepo}
+              </p>
+            ) : project.description ? (
+              <p className="text-xs text-muted-foreground truncate">{project.description}</p>
+            ) : null}
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
             <MoreHorizontal className="h-4 w-4" />
@@ -217,10 +231,12 @@ export default function ProjectsDashboard() {
 
   const filterProjects = (projects: Project[]) => {
     if (!searchQuery) return projects
+    const query = searchQuery.toLowerCase()
     return projects.filter(
       (p) =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.client.toLowerCase().includes(searchQuery.toLowerCase())
+        p.name.toLowerCase().includes(query) ||
+        p.description?.toLowerCase().includes(query) ||
+        p.githubRepo?.toLowerCase().includes(query)
     )
   }
 
@@ -256,7 +272,7 @@ export default function ProjectsDashboard() {
           <div>
             <h1 className="text-3xl font-bold">Projects</h1>
             <p className="text-muted-foreground mt-1">
-              Manage your client projects and generate updates
+              Manage your projects and generate updates
             </p>
           </div>
           <Button asChild>
@@ -390,7 +406,7 @@ function EmptyState({ type }: { type: "active" | "completed" | "all" }) {
       <h3 className="text-lg font-semibold mb-2">No {type} projects</h3>
       <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
         {type === "active"
-          ? "Start a new project to begin generating updates for your clients."
+          ? "Start a new project to begin generating updates."
           : type === "completed"
           ? "Completed projects will appear here."
           : "No projects match your search."}

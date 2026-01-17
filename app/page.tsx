@@ -33,10 +33,10 @@ export default function LandingPage() {
           </Link>
           <nav className="flex items-center gap-3">
             <Button variant="ghost" asChild>
-              <Link href="/login?role=client">Client Login</Link>
+              <Link href="/login?role=reviewer">Reviewer Login</Link>
             </Button>
             <Button asChild>
-              <Link href="/login?role=freelancer">Freelancer Login</Link>
+              <Link href="/login?role=developer">Developer Login</Link>
             </Button>
           </nav>
         </div>
@@ -47,28 +47,28 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto text-center space-y-8">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium animate-fade-in">
             <Sparkles className="h-4 w-4" />
-            AI-Powered Client Updates
+            AI-Powered Reviewer Updates
           </div>
           
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight leading-[1.1] animate-slide-up">
-            Keep clients in the loop,{" "}
+            Keep reviewers in the loop,{" "}
             <span className="gradient-text">automatically</span>
           </h1>
           
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed animate-slide-up" style={{ animationDelay: "100ms" }}>
             TeamSync transforms your code commits and staging sites into 
-            professional video updates. Save hours on client communication.
+            professional video updates. Save hours on reviewer communication.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 animate-slide-up" style={{ animationDelay: "200ms" }}>
             <Button size="lg" asChild>
-              <Link href="/login?role=freelancer">
+              <Link href="/login?role=developer">
                 Start Free Trial
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <Link href="/login?role=client">
+              <Link href="/login?role=reviewer">
                 View Demo Portal
               </Link>
             </Button>
@@ -100,8 +100,8 @@ export default function LandingPage() {
               },
               {
                 icon: MessageSquare,
-                title: "3. Share with clients",
-                description: "Clients view updates and ask questions through an AI assistant you control.",
+                title: "3. Share with reviewers",
+                description: "Reviewers view updates and ask questions through an AI assistant you control.",
               },
             ].map((step, i) => (
               <div
@@ -128,7 +128,7 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-2 gap-16 items-center">
             <div className="space-y-8">
               <h2 className="text-3xl font-bold">
-                Everything your clients need,{" "}
+                Everything your reviewers need,{" "}
                 <span className="gradient-text">nothing they don't</span>
               </h2>
 
@@ -147,7 +147,7 @@ export default function LandingPage() {
                   {
                     icon: MessageSquare,
                     title: "Smart Q&A",
-                    description: "Clients ask questions, AI answers. You approve when needed.",
+                    description: "Reviewers ask questions, AI answers. You approve when needed.",
                   },
                 ].map((feature) => (
                   <div key={feature.title} className="flex gap-4">
@@ -193,13 +193,13 @@ export default function LandingPage() {
             <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.1)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_3s_linear_infinite]" />
             <div className="relative z-10 space-y-6">
               <h2 className="text-3xl font-bold text-primary-foreground">
-                Ready to streamline client updates?
+                Ready to streamline reviewer updates?
               </h2>
               <p className="text-primary-foreground/80 max-w-lg mx-auto">
-                Join freelancers who save 5+ hours per week on client communication.
+                Join developers who save 5+ hours per week on reviewer communication.
               </p>
               <Button size="lg" variant="secondary" asChild>
-                <Link href="/login?role=freelancer">
+                <Link href="/login?role=developer">
                   Get Started Free
                   <ArrowRight className="h-4 w-4" />
                 </Link>

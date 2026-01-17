@@ -27,10 +27,10 @@ interface Message {
 
 interface ChatInterfaceProps {
   projectId: string
-  isFreelancer?: boolean
+  isDeveloper?: boolean
 }
 
-export function ChatInterface({ projectId, isFreelancer = false }: ChatInterfaceProps) {
+export function ChatInterface({ projectId, isDeveloper = false }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -51,7 +51,7 @@ export function ChatInterface({ projectId, isFreelancer = false }: ChatInterface
     scrollToBottom()
   }, [messages])
 
-  // Demo flagged messages for freelancer review
+  // Demo flagged messages for developer review
   const [flaggedMessages, setFlaggedMessages] = useState<Message[]>([
     {
       id: "flagged-1",
@@ -92,13 +92,13 @@ export function ChatInterface({ projectId, isFreelancer = false }: ChatInterface
         const flaggedMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: "assistant",
-          content: "I'm not entirely sure about this. Let me flag this question for the freelancer to review and provide an accurate answer.",
+          content: "I'm not entirely sure about this. Let me flag this question for the developer to review and provide an accurate answer.",
           timestamp: new Date(),
           status: "pending",
         }
         setMessages((prev) => [...prev, flaggedMessage])
 
-        // Add to flagged queue for freelancer
+        // Add to flagged queue for developer
         setFlaggedMessages((prev) => [
           ...prev,
           {
@@ -139,8 +139,8 @@ export function ChatInterface({ projectId, isFreelancer = false }: ChatInterface
 
   return (
     <div className="flex flex-col h-[600px]">
-      {/* Freelancer: Flagged Messages Panel */}
-      {isFreelancer && flaggedMessages.length > 0 && (
+      {/* Developer: Flagged Messages Panel */}
+      {isDeveloper && flaggedMessages.length > 0 && (
         <div className="mb-4 space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
             <AlertTriangle className="h-4 w-4 text-amber-500" />

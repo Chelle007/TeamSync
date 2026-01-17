@@ -7,8 +7,7 @@ export interface Project {
   updated_at: string
   name: string
   description?: string
-  freelancer_id: string // References auth.users
-  client_id?: string // References auth.users
+  developer_id: string // References auth.users
   project_url?: string
   github_repo?: string
   status: "active" | "paused" | "completed"
@@ -35,7 +34,7 @@ export interface Message {
   content: string
   status?: "pending" | "approved" | "flagged"
   flagged_reason?: string
-  approved_by?: string // References auth.users (freelancer who approved)
+  approved_by?: string // References auth.users (developer who approved)
   approved_at?: string
 }
 
@@ -45,7 +44,7 @@ export interface UserProfile {
   email: string
   full_name?: string
   avatar_url?: string
-  role: "freelancer" | "client"
+  github_access_token?: string // For GitHub API calls
 }
 
 // Database response types
