@@ -284,6 +284,13 @@ export default function ReviewerPortal() {
         return
       }
 
+      // Check if returning from re-authentication
+      const returnToProject = sessionStorage.getItem('return_to_project')
+      if (returnToProject === projectId) {
+        sessionStorage.removeItem('return_to_project')
+        toast.success('Re-authenticated successfully! You can now setup the webhook.')
+      }
+
       // Fetch user role from profile
       const { data: profile } = await supabase
         .from("profiles")
@@ -350,6 +357,60 @@ export default function ReviewerPortal() {
 
     fetchData()
   }, [projectId, router])
+
+  // Real-time subscription for updates
+  useEffect(() => {
+    const supabase = createClient()
+
+    // Subscribe to updates for this project
+    const channel = supabase
+      .channel(`project-${projectId}-updates`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'updates',
+          filter: `project_id=eq.${projectId}`,
+        },
+        (payload) => {
+          console.log('🔔 Real-time update received:', payload)
+
+          if (payload.eventType === 'INSERT') {
+            // New update created (from webhook)
+            setUpdates((prev) => [payload.new as Update, ...prev])
+            toast.success('New update available!', {
+              description: (payload.new as Update).title,
+            })
+          } else if (payload.eventType === 'UPDATE') {
+            // Update modified (status change, etc.)
+            setUpdates((prev) =>
+              prev.map((update) =>
+                update.id === payload.new.id ? (payload.new as Update) : update
+              )
+            )
+            
+            // Show toast if status changed to completed
+            const oldStatus = (payload.old as Update)?.status
+            const newStatus = (payload.new as Update)?.status
+            if (oldStatus !== 'completed' && newStatus === 'completed') {
+              toast.success('Video generation completed!', {
+                description: (payload.new as Update).title,
+              })
+            }
+          } else if (payload.eventType === 'DELETE') {
+            // Update deleted
+            setUpdates((prev) => prev.filter((update) => update.id !== payload.old.id))
+          }
+        }
+      )
+      .subscribe()
+
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [projectId])
 
   const fetchDocuments = async () => {
     setIsLoadingDocuments(true)

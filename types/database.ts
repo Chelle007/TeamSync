@@ -37,11 +37,27 @@ export interface Update {
   id: string
   created_at: string
   project_id: string // References projects
+  webhook_event_id?: string // References webhook_events
   title: string
   video_url?: string
   doc_url?: string
   summary: string
   status: "pending" | "processing" | "completed" | "failed"
+}
+
+export interface WebhookEvent {
+  id: string
+  created_at: string
+  project_id: string // References projects
+  event_type: string
+  pr_number: number
+  pr_title: string
+  pr_body: string
+  merged_by: string
+  merged_at: string
+  raw_payload: any // JSONB
+  processing_status: "pending" | "processing" | "completed" | "failed"
+  error_message?: string
 }
 
 export interface ChatbotMessage {
@@ -85,6 +101,11 @@ export type Database = {
         Row: ChatbotMessage
         Insert: Omit<ChatbotMessage, "id" | "created_at">
         Update: Partial<Omit<ChatbotMessage, "id" | "created_at">>
+      }
+      webhook_events: {
+        Row: WebhookEvent
+        Insert: Omit<WebhookEvent, "id" | "created_at">
+        Update: Partial<Omit<WebhookEvent, "id" | "created_at">>
       }
     }
   }

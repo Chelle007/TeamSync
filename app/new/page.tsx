@@ -346,61 +346,29 @@ export default function NewProjectPage() {
 
       toast.success("Project created successfully!")
       
-      // If PDF was uploaded to temp folder, move it to project folder
-      if (pdfPath && pdfPath.startsWith('temp/')) {
+      // Automatically setup webhook if GitHub URL is provided
+      if (formData.githubRepo.trim() && repoStatus === 'verified') {
         try {
-          const supabase = createClient()
-          
-          // Download from temp location
-          const { data: fileData, error: downloadError } = await supabase.storage
-            .from('project-documents')
-            .download(pdfPath)
+          const webhookResponse = await fetch('/api/projects/setup-webhook', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ projectId: project.id }),
+          })
 
-          if (!downloadError && fileData) {
-            // Extract filename from temp path
-            const fileName = pdfPath.split('/').pop() || `project-scope-${Date.now()}.pdf`
-            const newPath = `${project.id}/${fileName}`
-
-            // Upload to project folder
-            const { error: uploadError } = await supabase.storage
-              .from('project-documents')
-              .upload(newPath, fileData, {
-                contentType: 'application/pdf',
-                upsert: false,
-              })
-
-            if (!uploadError) {
-              // Delete temp file
-              await supabase.storage
-                .from('project-documents')
-                .remove([pdfPath])
-            }
+          if (webhookResponse.ok) {
+            const webhookData = await webhookResponse.json()
+            toast.success('GitHub webhook configured automatically!')
+          } else {
+            // Don't fail the whole flow if webhook setup fails
+            console.warn('Webhook setup failed, but project was created')
+            toast.info('Project created! You can setup the webhook later in Settings.')
           }
-        } catch (error) {
-          console.error('Error moving PDF file:', error)
-          // Don't block project creation if file move fails
+        } catch (webhookError) {
+          console.error('Webhook setup error:', webhookError)
+          // Don't fail the whole flow
         }
-      }
-      
-      // Automatically generate Update 1 if GitHub repo is linked
-      if (formData.githubRepo.trim()) {
-        // Generate Update 1 in the background (don't wait for it)
-        fetch(`/api/projects/${project.id}/updates`, {
-          method: 'POST',
-        })
-          .then(async (response) => {
-            if (response.ok) {
-              toast.success("Update 1 generated successfully!")
-            } else {
-              const data = await response.json()
-              console.error('Failed to generate Update 1:', data.error)
-              // Don't show error toast - it's not critical, user can generate manually
-            }
-          })
-          .catch((error) => {
-            console.error('Error generating Update 1:', error)
-            // Don't show error toast - it's not critical
-          })
       }
       
       // Redirect to project page
