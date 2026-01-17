@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS public.projects (
     github_url TEXT,
     live_url TEXT,
     summary TEXT,
+    project_scope TEXT,
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'paused', 'completed')),
     progress INTEGER DEFAULT 0 CHECK (progress >= 0 AND progress <= 100)
 );
@@ -332,12 +333,13 @@ CREATE POLICY "Owners can update chatbot messages"
     );
 
 -- Function to create a project with owner link (bypasses RLS for insertion)
-DROP FUNCTION IF EXISTS create_project_with_owner(TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER);
+DROP FUNCTION IF EXISTS create_project_with_owner(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER);
 CREATE OR REPLACE FUNCTION create_project_with_owner(
     p_name TEXT,
     p_github_url TEXT DEFAULT NULL,
     p_live_url TEXT DEFAULT NULL,
     p_summary TEXT DEFAULT NULL,
+    p_project_scope TEXT DEFAULT NULL,
     p_status TEXT DEFAULT 'active',
     p_progress INTEGER DEFAULT 0
 )
@@ -347,6 +349,7 @@ RETURNS TABLE (
     github_url TEXT,
     live_url TEXT,
     summary TEXT,
+    project_scope TEXT,
     status TEXT,
     progress INTEGER,
     created_at TIMESTAMP WITH TIME ZONE,
@@ -366,8 +369,8 @@ BEGIN
     END IF;
     
     -- Insert project
-    INSERT INTO public.projects (name, github_url, live_url, summary, status, progress)
-    VALUES (p_name, p_github_url, p_live_url, p_summary, p_status, p_progress)
+    INSERT INTO public.projects (name, github_url, live_url, summary, project_scope, status, progress)
+    VALUES (p_name, p_github_url, p_live_url, p_summary, p_project_scope, p_status, p_progress)
     RETURNING projects.id INTO v_project_id;
     
     -- Link user as owner
@@ -383,6 +386,7 @@ BEGIN
         p.github_url,
         p.live_url,
         p.summary,
+        p.project_scope,
         p.status,
         p.progress,
         p.created_at,

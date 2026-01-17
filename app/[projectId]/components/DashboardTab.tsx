@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { FileText, Upload, GitBranch, ExternalLink, Calendar, Loader2, X, Check, Pencil, Trash2 } from "lucide-react"
+import { FileText, Upload, GitBranch, ExternalLink, Calendar, Loader2, X, Check, Pencil, Trash2, FileCheck } from "lucide-react"
 import type { Project } from "@/types/database"
 import { toast } from "sonner"
 
@@ -15,6 +15,7 @@ interface DashboardTabProps {
     progress: number
     status: "active" | "completed" | "paused"
     timeline: string
+    projectScope: string | null
   }
   updates: Array<{ id: string }>
   documents: Array<{ name: string; size: number; created_at: string; url: string }>
@@ -129,6 +130,25 @@ export function DashboardTab({
 
       {/* Content Grid */}
       <div className="grid gap-6">
+        {/* Project Scope */}
+        {projectDetails.projectScope && (
+          <Card className="shadow-md hover:shadow-lg transition-shadow duration-300">
+            <CardContent className="p-6 lg:p-8 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <FileCheck className="h-5 w-5 text-primary" />
+                </div>
+                <h3 className="text-xl font-bold">Project Scope</h3>
+              </div>
+              <div className="prose prose-sm max-w-none">
+                <div className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                  {projectDetails.projectScope}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Project Files */}
         <Card className="shadow-md hover:shadow-lg transition-shadow duration-300">
           <CardContent className="p-6 lg:p-8 space-y-6">
