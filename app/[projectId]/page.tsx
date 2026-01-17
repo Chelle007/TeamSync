@@ -714,6 +714,7 @@ export default function ReviewerPortal() {
           <SettingsTab
             project={project}
             projectDetails={projectDetails}
+            projectId={projectId}
           />
         </Tabs>
           </div>
