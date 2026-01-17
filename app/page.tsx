@@ -27,6 +27,9 @@ import {
   GitBranch,
   LogOut,
   Loader2,
+  Edit2,
+  Check,
+  X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -174,6 +177,9 @@ function ProjectCard({ project }: { project: Project }) {
 function UserProfileDropdown() {
   const [isOpen, setIsOpen] = useState(false)
   const [user, setUser] = useState<{ email?: string; name?: string } | null>(null)
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [editedName, setEditedName] = useState("")
+  const [isSaving, setIsSaving] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
 
@@ -182,10 +188,12 @@ function UserProfileDropdown() {
       const supabase = createClient()
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (authUser) {
+        const userName = authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email?.split("@")[0] || "User"
         setUser({
           email: authUser.email,
-          name: authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email?.split("@")[0] || "User"
+          name: userName
         })
+        setEditedName(userName)
       }
     }
     fetchUser()
@@ -218,6 +226,53 @@ function UserProfileDropdown() {
     }
   }
 
+  const handleEditName = () => {
+    setIsEditingName(true)
+    setEditedName(user?.name || "")
+  }
+
+  const handleCancelEdit = () => {
+    setIsEditingName(false)
+    setEditedName(user?.name || "")
+  }
+
+  const handleSaveName = async () => {
+    if (!editedName.trim()) {
+      toast.error("Name cannot be empty")
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const supabase = createClient()
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      
+      if (authUser) {
+        const { error } = await supabase.auth.updateUser({
+          data: {
+            ...authUser.user_metadata,
+            full_name: editedName.trim(),
+            name: editedName.trim()
+          }
+        })
+
+        if (error) throw error
+
+        setUser({
+          ...user,
+          name: editedName.trim()
+        })
+        setIsEditingName(false)
+        toast.success("Name updated successfully")
+      }
+    } catch (error) {
+      toast.error("Failed to update name")
+      console.error(error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   return (
     <div className="relative" ref={dropdownRef}>
       <Button 
@@ -236,15 +291,61 @@ function UserProfileDropdown() {
         <Card className="absolute right-0 top-12 w-64 shadow-lg border z-50 animate-slide-up">
           <CardContent className="p-4 space-y-4">
             {/* User Info */}
-            <div className="space-y-1 pb-3 border-b">
+            <div className="space-y-3 pb-3 border-b">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                   <User className="h-5 w-5 text-primary" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-sm truncate">
-                    {user?.name || "User"}
-                  </p>
+                <div className="min-w-0 flex-1 space-y-1">
+                  {isEditingName ? (
+                    <div className="space-y-2">
+                      <Input
+                        value={editedName}
+                        onChange={(e) => setEditedName(e.target.value)}
+                        className="h-8 text-sm"
+                        disabled={isSaving}
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleSaveName()
+                          if (e.key === "Escape") handleCancelEdit()
+                        }}
+                      />
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 px-2"
+                          onClick={handleSaveName}
+                          disabled={isSaving}
+                        >
+                          <Check className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2"
+                          onClick={handleCancelEdit}
+                          disabled={isSaving}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold text-sm truncate">
+                        {user?.name || "User"}
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0"
+                        onClick={handleEditName}
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground truncate">
                     {user?.email || ""}
                   </p>
@@ -273,6 +374,7 @@ export default function ProjectsDashboard() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const router = useRouter()
 
   // Fetch projects from Supabase
@@ -286,6 +388,17 @@ export default function ProjectsDashboard() {
         if (!user) {
           router.push("/login")
           return
+        }
+
+        // Fetch user role from profiles table
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single()
+        
+        if (profile?.role) {
+          setUserRole(profile.role)
         }
 
         // Fetch projects for this user (via project_user junction table)
@@ -396,6 +509,11 @@ export default function ProjectsDashboard() {
           </Link>
 
           <div className="flex items-center gap-3">
+            {userRole && (
+              <span className="text-sm font-medium text-muted-foreground capitalize">
+                {userRole}
+              </span>
+            )}
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-accent text-[10px] font-bold flex items-center justify-center text-accent-foreground">
