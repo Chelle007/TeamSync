@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -248,8 +248,17 @@ function UserProfileDropdown() {
 export default function ReviewerPortal() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const projectId = params.projectId as string
   const [activeTab, setActiveTab] = useState("dashboard")
+  
+  // Check URL for tab parameter
+  useEffect(() => {
+    const tabParam = searchParams.get("tab")
+    if (tabParam && ["dashboard", "updates", "assistant", "settings"].includes(tabParam)) {
+      setActiveTab(tabParam)
+    }
+  }, [searchParams])
   const [userRole, setUserRole] = useState<"developer" | "reviewer" | null>(null)
   const [project, setProject] = useState<Project | null>(null)
   const [updates, setUpdates] = useState<Update[]>([])
