@@ -46,6 +46,20 @@ function ProjectScopeContent({ content }: { content: string }) {
       .replace(/^#+\s*Project\s+Scope\s*/i, '')
       .trim()
 
+    // Remove standalone # characters on their own lines (not part of headers)
+    cleanedContent = cleanedContent
+      .split('\n')
+      .map(line => {
+        // If line is just # or ## or ### etc (with optional whitespace), remove it
+        if (line.trim().match(/^#+\s*$/)) {
+          return ''
+        }
+        return line
+      })
+      .filter(line => line.trim() !== '')
+      .join('\n')
+      .trim()
+
     // Split by markdown headers (##)
     const sections = cleanedContent.split(/(?=##\s)/g).filter(Boolean)
     
