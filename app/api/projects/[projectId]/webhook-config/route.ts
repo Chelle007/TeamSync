@@ -1,9 +1,13 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
 
+type RouteContext = {
+  params: Promise<{ projectId: string }>
+}
+
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ projectId: string }> }
+  context: RouteContext
 ) {
   try {
     const supabase = await createClient()
@@ -14,7 +18,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { projectId } = await params
+    const { projectId } = await context.params
 
     // Get project with webhook secret
     const { data: project, error: projectError } = await supabase
@@ -46,7 +50,7 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ projectId: string }> }
+  context: RouteContext
 ) {
   try {
     const supabase = await createClient()
@@ -57,7 +61,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { projectId } = await params
+    const { projectId } = await context.params
 
     // Regenerate webhook secret
     const { data: newSecret, error: regenerateError } = await supabase
