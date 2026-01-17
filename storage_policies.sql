@@ -40,7 +40,14 @@ CREATE POLICY "Users can upload documents to their projects"
 ON storage.objects FOR INSERT
 WITH CHECK (
   bucket_id = 'project-documents' AND
-  user_has_project_access_for_storage((storage.foldername(name))[1])
+  (
+    -- Allow uploads to project folders if user has access
+    user_has_project_access_for_storage((storage.foldername(name))[1])
+    OR
+    -- Allow uploads to temp folder for project creation
+    (storage.foldername(name))[1] = 'temp' AND
+    (storage.foldername(name))[2] = auth.uid()::text
+  )
 );
 
 DROP POLICY IF EXISTS "Users can view documents for their projects" ON storage.objects;
@@ -48,7 +55,14 @@ CREATE POLICY "Users can view documents for their projects"
 ON storage.objects FOR SELECT
 USING (
   bucket_id = 'project-documents' AND
-  user_has_project_access_for_storage((storage.foldername(name))[1])
+  (
+    -- Allow viewing documents in project folders if user has access
+    user_has_project_access_for_storage((storage.foldername(name))[1])
+    OR
+    -- Allow viewing files in temp folder that belong to the user
+    (storage.foldername(name))[1] = 'temp' AND
+    (storage.foldername(name))[2] = auth.uid()::text
+  )
 );
 
 DROP POLICY IF EXISTS "Users can delete documents from their projects" ON storage.objects;
@@ -56,5 +70,12 @@ CREATE POLICY "Users can delete documents from their projects"
 ON storage.objects FOR DELETE
 USING (
   bucket_id = 'project-documents' AND
-  user_has_project_access_for_storage((storage.foldername(name))[1])
+  (
+    -- Allow deleting documents in project folders if user has access
+    user_has_project_access_for_storage((storage.foldername(name))[1])
+    OR
+    -- Allow deleting files in temp folder that belong to the user
+    (storage.foldername(name))[1] = 'temp' AND
+    (storage.foldername(name))[2] = auth.uid()::text
+  )
 );

@@ -2,6 +2,14 @@ import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
+// Dynamic import for pdfjs-dist to avoid ESM issues in Next.js
+const getPdfJs = async () => {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  // Disable worker for server-side use (Next.js API routes)
+  pdfjs.GlobalWorkerOptions.workerSrc = ''
+  return pdfjs
+}
+
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -20,6 +28,7 @@ export async function POST(request: Request) {
     const formData = await request.formData()
     const projectScopeInput = formData.get('projectScope') as string | null
     const pdfFile = formData.get('pdfFile') as File | null
+    const projectId = formData.get('projectId') as string | null // Optional: if project already exists
 
     if (!projectScopeInput && !pdfFile) {
       return NextResponse.json({ error: 'Project scope or PDF file is required' }, { status: 400 })
@@ -40,13 +49,19 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'PDF file size must be less than 10MB' }, { status: 400 })
       }
 
-      // Upload PDF to Supabase Storage
+      // Upload PDF to project-documents bucket
       const fileExt = pdfFile.name.split('.').pop()
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`
-      const filePath = `project-scopes/${fileName}`
+      const timestamp = Date.now()
+      const sanitizedName = pdfFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+      
+      // If projectId is provided, upload directly to project folder
+      // Otherwise, upload to temp folder (will be moved after project creation)
+      const filePath = projectId 
+        ? `${projectId}/${timestamp}-${sanitizedName}`
+        : `temp/${user.id}/${timestamp}-${sanitizedName}`
 
       const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('project-scopes')
+        .from('project-documents')
         .upload(filePath, pdfFile, {
           contentType: 'application/pdf',
           upsert: false,
@@ -54,31 +69,87 @@ export async function POST(request: Request) {
 
       if (uploadError) {
         console.error('Upload error:', uploadError)
-        return NextResponse.json({ error: 'Failed to upload PDF' }, { status: 500 })
+        
+        // Provide helpful error messages
+        if (uploadError.message?.includes('Bucket not found')) {
+          return NextResponse.json({ 
+            error: 'Storage bucket not found. Please create the "project-documents" bucket in Supabase Storage.',
+            details: 'Go to Storage → Create bucket → Name: project-documents'
+          }, { status: 404 })
+        }
+        
+        return NextResponse.json({ 
+          error: uploadError.message || 'Failed to upload PDF',
+          details: uploadError.message
+        }, { status: 500 })
       }
 
       pdfPath = filePath
 
-      // Extract text from PDF using pdf-parse
+      // Extract text from PDF using pdfjs-dist (fast, local processing)
       try {
-        // Use require for CommonJS module (works in Node.js API routes)
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string }>
-        const pdfBuffer = Buffer.from(await pdfFile.arrayBuffer())
-        const pdfData = await pdfParse(pdfBuffer)
-        textToSummarize = pdfData.text
+        const arrayBuffer = await pdfFile.arrayBuffer()
+        // Convert to Uint8Array as required by pdfjs-dist
+        const pdfData = new Uint8Array(arrayBuffer)
+        
+        // Dynamically import pdfjs-dist
+        const pdfjs = await getPdfJs()
+        
+        // Disable worker for server-side use (Next.js API routes don't support workers)
+        pdfjs.GlobalWorkerOptions.workerSrc = ''
+        
+        // Load PDF document using pdfjs-dist (disable worker for server-side)
+        const loadingTask = pdfjs.getDocument({ 
+          data: pdfData,
+          useWorkerFetch: false,
+          isEvalSupported: false,
+          useSystemFonts: true,
+        })
+        const pdfDocument = await loadingTask.promise
+        
+        // Extract text from all pages
+        let fullText = ''
+        for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
+          const page = await pdfDocument.getPage(pageNum)
+          const textContent = await page.getTextContent()
+          const pageText = textContent.items
+            .map((item: any) => item.str)
+            .join(' ')
+          fullText += pageText + '\n\n'
+        }
+        
+        textToSummarize = fullText.trim()
 
-        if (!textToSummarize || textToSummarize.trim().length === 0) {
+        if (!textToSummarize || textToSummarize.length === 0) {
           return NextResponse.json({ 
-            error: 'PDF appears to be empty or could not extract text',
-            pdfPath 
+            error: 'PDF appears to be empty or contains only images/scanned content. Please ensure the PDF contains selectable text.',
+            pdfPath,
+            suggestion: 'If your PDF contains only images, try copying the text and pasting it into the text input field instead.'
           }, { status: 400 })
         }
-      } catch (parseError) {
-        console.error('PDF parse error:', parseError)
+      } catch (error: any) {
+        console.error('PDF processing error:', error)
+        
+        // Provide more specific error messages
+        if (error.message?.includes('password') || error.message?.includes('encrypted')) {
+          return NextResponse.json({ 
+            error: 'PDF is password-protected or encrypted. Please remove the password and try again, or provide the project scope as text.',
+            pdfPath
+          }, { status: 400 })
+        }
+        
+        if (error.message?.includes('corrupt') || error.message?.includes('invalid')) {
+          return NextResponse.json({ 
+            error: 'PDF file appears to be corrupted or invalid. Please try a different PDF file or provide the project scope as text.',
+            pdfPath
+          }, { status: 400 })
+        }
+        
         return NextResponse.json({ 
-          error: 'Failed to extract text from PDF. Please ensure the PDF contains readable text.',
-          pdfPath 
+          error: 'Failed to process PDF. The PDF may be corrupted, password-protected, or contain only images. Please try providing the project scope as text instead.',
+          pdfPath,
+          suggestion: 'You can copy the text from your PDF and paste it into the text input field.',
+          details: error.message
         }, { status: 500 })
       }
     }

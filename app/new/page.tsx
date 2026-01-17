@@ -346,6 +346,42 @@ export default function NewProjectPage() {
 
       toast.success("Project created successfully!")
       
+      // If PDF was uploaded to temp folder, move it to project folder
+      if (pdfPath && pdfPath.startsWith('temp/')) {
+        try {
+          const supabase = createClient()
+          
+          // Download from temp location
+          const { data: fileData, error: downloadError } = await supabase.storage
+            .from('project-documents')
+            .download(pdfPath)
+
+          if (!downloadError && fileData) {
+            // Extract filename from temp path
+            const fileName = pdfPath.split('/').pop() || `project-scope-${Date.now()}.pdf`
+            const newPath = `${project.id}/${fileName}`
+
+            // Upload to project folder
+            const { error: uploadError } = await supabase.storage
+              .from('project-documents')
+              .upload(newPath, fileData, {
+                contentType: 'application/pdf',
+                upsert: false,
+              })
+
+            if (!uploadError) {
+              // Delete temp file
+              await supabase.storage
+                .from('project-documents')
+                .remove([pdfPath])
+            }
+          }
+        } catch (error) {
+          console.error('Error moving PDF file:', error)
+          // Don't block project creation if file move fails
+        }
+      }
+      
       // Automatically generate Update 1 if GitHub repo is linked
       if (formData.githubRepo.trim()) {
         // Generate Update 1 in the background (don't wait for it)
