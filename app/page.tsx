@@ -16,8 +16,6 @@ import {
   Search,
   LayoutGrid,
   List,
-  ExternalLink,
-  MoreHorizontal,
   Video,
   Calendar,
   TrendingUp,
@@ -95,17 +93,6 @@ function ProjectCard({
             </div>
           </div>
         )}
-        {/* Hover overlay */}
-        {canGenerate && (
-          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-            <Button size="sm" variant="secondary" asChild>
-              <Link href={`/${project.id}/generate`}>
-                <Video className="h-4 w-4" />
-                Generate Update
-              </Link>
-            </Button>
-          </div>
-        )}
       </div>
 
       <CardContent className="p-4 space-y-3">
@@ -127,9 +114,22 @@ function ProjectCard({
               <p className="text-xs text-muted-foreground line-clamp-2">{project.description}</p>
             ) : null}
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
+          {canGenerate && onDelete && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10" 
+              onClick={() => onDelete(project.id)}
+              disabled={isDeleting}
+              title="Delete project"
+            >
+              {isDeleting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+            </Button>
+          )}
         </div>
 
         {/* Progress */}
@@ -167,35 +167,6 @@ function ProjectCard({
           </div>
         </div>
 
-        {/* Quick Actions */}
-        <div className="flex gap-2 pt-1">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex-1 text-xs h-8 whitespace-nowrap" 
-            asChild
-          >
-            <Link href={`/${project.id}`} className="flex items-center justify-center gap-1.5">
-              <span>View Portal</span>
-              <ExternalLink className="h-3 w-3 shrink-0" />
-            </Link>
-          </Button>
-          {canGenerate && onDelete && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="h-8 px-3 text-xs text-destructive hover:text-destructive hover:bg-destructive/10" 
-              onClick={() => onDelete(project.id)}
-              disabled={isDeleting}
-            >
-              {isDeleting ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Trash2 className="h-3 w-3" />
-              )}
-            </Button>
-          )}
-        </div>
       </CardContent>
     </Card>
   )
