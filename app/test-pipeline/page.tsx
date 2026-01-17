@@ -78,7 +78,7 @@ export default function TestPipelinePage() {
       const data = await response.json();
       setAiResult(data);
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
       setIsTestingAI(false);
     }
@@ -104,7 +104,7 @@ export default function TestPipelinePage() {
       const data = await response.json();
       setResult(data);
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
       setIsGenerating(false);
     }
