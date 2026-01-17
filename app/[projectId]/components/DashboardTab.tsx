@@ -46,6 +46,20 @@ function ProjectScopeContent({ content }: { content: string }) {
       .replace(/^#+\s*Project\s+Scope\s*/i, '')
       .trim()
 
+    // Remove standalone # characters on their own lines (not part of headers)
+    cleanedContent = cleanedContent
+      .split('\n')
+      .map(line => {
+        // If line is just # or ## or ### etc (with optional whitespace), remove it
+        if (line.trim().match(/^#+\s*$/)) {
+          return ''
+        }
+        return line
+      })
+      .filter(line => line.trim() !== '')
+      .join('\n')
+      .trim()
+
     // Split by markdown headers (##)
     const sections = cleanedContent.split(/(?=##\s)/g).filter(Boolean)
     
@@ -274,26 +288,6 @@ export function DashboardTab({
 
       {/* Content Grid */}
       <div className="grid gap-6">
-        {/* Project Scope */}
-        {projectDetails.projectScope && (
-          <Card className="shadow-md">
-            <CardContent className="p-6 lg:p-8 space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <FileCheck className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold">Project Scope</h3>
-                  <p className="text-sm text-muted-foreground mt-0.5">Project requirements and specifications</p>
-                </div>
-              </div>
-              <div>
-                <ProjectScopeContent content={projectDetails.projectScope} />
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Project Files */}
         <Card className="shadow-md">
           <CardContent className="p-6 lg:p-8 space-y-6">
@@ -316,17 +310,19 @@ export function DashboardTab({
                     onChange={onFileSelect}
                     className="hidden"
                   />
-                  <label htmlFor="file-upload">
+                  <label htmlFor="file-upload" className="cursor-pointer">
                     <Button
                       variant="default"
                       size="default"
-                      asChild
-                      className="cursor-pointer h-10 px-4 shadow-sm hover:shadow-md transition-shadow hover:translate-y-0"
+                      type="button"
+                      className="h-10 px-4 shadow-sm hover:shadow-md transition-shadow hover:translate-y-0"
+                      onClick={() => {
+                        const fileInput = document.getElementById("file-upload") as HTMLInputElement
+                        if (fileInput) fileInput.click()
+                      }}
                     >
-                      <span className="flex items-center gap-2">
-                        <Upload className="h-4 w-4" />
-                        Upload PDF
-                      </span>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload PDF
                     </Button>
                   </label>
                   {selectedFile && (
@@ -489,6 +485,26 @@ export function DashboardTab({
             )}
           </CardContent>
         </Card>
+
+        {/* Project Scope */}
+        {projectDetails.projectScope && (
+          <Card className="shadow-md">
+            <CardContent className="p-6 lg:p-8 space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <FileCheck className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold">Project Scope</h3>
+                  <p className="text-sm text-muted-foreground mt-0.5">Project requirements and specifications</p>
+                </div>
+              </div>
+              <div>
+                <ProjectScopeContent content={projectDetails.projectScope} />
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )
