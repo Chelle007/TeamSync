@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     if (!error) {
       // Redirect based on role
       if (role === 'developer') {
-        return NextResponse.redirect(`${origin}/dashboard`)
+        return NextResponse.redirect(`${origin}/`)
       } else {
         return NextResponse.redirect(`${origin}/portal/demo-project`)
       }

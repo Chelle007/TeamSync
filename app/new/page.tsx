@@ -134,7 +134,7 @@ export default function NewProjectPage() {
       
       // Generate a slug from the project name
       const slug = formData.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")
-      router.push(`/dashboard/${slug}/generate`)
+      router.push(`/${slug}/generate`)
     } catch {
       toast.error("Failed to create project. Please try again.")
     } finally {
@@ -159,7 +159,7 @@ export default function NewProjectPage() {
       <main className="max-w-2xl mx-auto px-6 py-12">
         {/* Back link */}
         <Link
-          href="/dashboard"
+          href="/"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -314,7 +314,7 @@ export default function NewProjectPage() {
               {/* Actions */}
               <div className="flex gap-3 pt-4">
                 <Button type="button" variant="outline" className="flex-1" asChild>
-                  <Link href="/dashboard">Cancel</Link>
+                  <Link href="/">Cancel</Link>
                 </Button>
                 <Button 
                   type="submit" 

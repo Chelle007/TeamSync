@@ -113,7 +113,7 @@ export default function ReviewerPortal() {
             
             {isDeveloperView && (
               <Button asChild>
-                <Link href="/dashboard/generate">
+                <Link href="/generate">
                   Generate New Update
                 </Link>
               </Button>
@@ -187,7 +187,7 @@ export default function ReviewerPortal() {
                   </p>
                   {isDeveloperView && (
                     <Button asChild>
-                      <Link href="/dashboard/generate">Generate First Update</Link>
+                      <Link href="/generate">Generate First Update</Link>
                     </Button>
                   )}
                 </div>
