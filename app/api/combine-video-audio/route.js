@@ -53,28 +53,54 @@ export async function POST(request) {
 
         // Combine video and audio
         await new Promise((resolve, reject) => {
-            const ffmpegCommand = ffmpeg()
-                .input(videoFilePath)
-                .input(audioFilePath);
+            let ffmpegCommand = ffmpeg();
 
             // If video is longer than audio, trim video to match audio
             if (videoDuration > audioDuration) {
-                ffmpegCommand.outputOptions(['-t', audioDuration.toString()]);
+                ffmpegCommand
+                    .input(videoFilePath)
+                    .input(audioFilePath)
+                    .outputOptions(['-t', audioDuration.toString()])
+                    .outputOptions([
+                        '-c:v libx264', // Re-encode video to trim properly
+                        '-c:a aac',     // Encode audio as AAC
+                        '-map 0:v:0',   // Use video from first input
+                        '-map 1:a:0',   // Use audio from second input
+                    ]);
                 console.log(`Trimming video to ${audioDuration}s to match audio`);
             }
-            // If audio is longer than video, trim audio to match video
+            // If audio is longer than video, slow down video to match audio duration
             else if (audioDuration > videoDuration) {
-                ffmpegCommand.inputOptions(['-t', videoDuration.toString()]);
-                console.log(`Trimming audio to ${videoDuration}s to match video`);
+                const speedFactor = videoDuration / audioDuration; // e.g., 15/17 = 0.88 (slower)
+                console.log(`Slowing down video by factor ${speedFactor.toFixed(3)} to match audio duration (${videoDuration}s -> ${audioDuration}s)`);
+                
+                ffmpegCommand
+                    .input(videoFilePath)
+                    .input(audioFilePath)
+                    .outputOptions([
+                        '-filter_complex', `[0:v]setpts=PTS/${speedFactor}[v]`,
+                        '-map', '[v]',
+                        '-map', '1:a',
+                        '-c:v', 'libx264',
+                        '-c:a', 'aac',
+                        '-t', audioDuration.toString()
+                    ]);
+            }
+            // If durations match, just combine normally
+            else {
+                ffmpegCommand
+                    .input(videoFilePath)
+                    .input(audioFilePath)
+                    .outputOptions([
+                        '-c:v copy', // Copy video stream (no re-encoding)
+                        '-c:a aac',  // Encode audio as AAC
+                        '-map 0:v:0', // Use video from first input
+                        '-map 1:a:0', // Use audio from second input
+                    ]);
+                console.log('Video and audio durations match, combining normally');
             }
 
             ffmpegCommand
-                .outputOptions([
-                    '-c:v copy', // Copy video stream (no re-encoding)
-                    '-c:a aac',  // Encode audio as AAC
-                    '-map 0:v:0', // Use video from first input
-                    '-map 1:a:0', // Use audio from second input
-                ])
                 .output(outputPath)
                 .on('start', (cmd) => console.log('FFmpeg command:', cmd))
                 .on('progress', (progress) => console.log('Processing:', progress.percent, '%'))
