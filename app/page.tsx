@@ -4,10 +4,18 @@ import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
 import { createClient } from "@/utils/supabase/client"
 import { toast } from "sonner"
 import {
@@ -16,8 +24,6 @@ import {
   Search,
   LayoutGrid,
   List,
-  ExternalLink,
-  MoreHorizontal,
   Video,
   Calendar,
   TrendingUp,
@@ -53,6 +59,7 @@ interface Project {
   updatesCount: number
   lastUpdate: string
   createdAt: string
+  latestUpdateId?: string
 }
 
 function ProjectCard({
@@ -60,11 +67,13 @@ function ProjectCard({
   canGenerate,
   onDelete,
   isDeleting,
+  onDeleteClick,
 }: {
   project: Project
   canGenerate: boolean
   onDelete?: (projectId: string) => void
   isDeleting?: boolean
+  onDeleteClick?: (projectId: string) => void
 }) {
   const statusColors = {
     active: "bg-emerald-500",
@@ -78,15 +87,21 @@ function ProjectCard({
     paused: "Paused",
   }
 
+  // Navigate to dashboard when clicking thumbnail
+  const thumbnailLink = `/${project.id}?tab=dashboard`
+
   return (
     <Card className="group hover:shadow-lg transition-all duration-300 hover:-translate-y-1 overflow-hidden">
       {/* Thumbnail */}
-      <div className="aspect-[16/10] bg-gradient-to-br from-zinc-800 to-zinc-900 relative overflow-hidden">
+      <Link 
+        href={thumbnailLink}
+        className="block aspect-[16/10] bg-gradient-to-br from-zinc-800 to-zinc-900 relative overflow-hidden cursor-pointer"
+      >
         {project.thumbnail ? (
           <img
             src={project.thumbnail}
             alt={project.name}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover transition-transform group-hover:scale-105"
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -95,18 +110,7 @@ function ProjectCard({
             </div>
           </div>
         )}
-        {/* Hover overlay */}
-        {canGenerate && (
-          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-            <Button size="sm" variant="secondary" asChild>
-              <Link href={`/${project.id}/generate`}>
-                <Video className="h-4 w-4" />
-                Generate Update
-              </Link>
-            </Button>
-          </div>
-        )}
-      </div>
+      </Link>
 
       <CardContent className="p-4 space-y-3">
         {/* Title & Menu */}
@@ -127,9 +131,22 @@ function ProjectCard({
               <p className="text-xs text-muted-foreground line-clamp-2">{project.description}</p>
             ) : null}
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
+          {canGenerate && onDeleteClick && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10" 
+              onClick={() => onDeleteClick(project.id)}
+              disabled={isDeleting}
+              title="Delete project"
+            >
+              {isDeleting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+            </Button>
+          )}
         </div>
 
         {/* Progress */}
@@ -167,35 +184,6 @@ function ProjectCard({
           </div>
         </div>
 
-        {/* Quick Actions */}
-        <div className="flex gap-2 pt-1">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex-1 text-xs h-8 whitespace-nowrap" 
-            asChild
-          >
-            <Link href={`/${project.id}`} className="flex items-center justify-center gap-1.5">
-              <span>View Portal</span>
-              <ExternalLink className="h-3 w-3 shrink-0" />
-            </Link>
-          </Button>
-          {canGenerate && onDelete && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="h-8 px-3 text-xs text-destructive hover:text-destructive hover:bg-destructive/10" 
-              onClick={() => onDelete(project.id)}
-              disabled={isDeleting}
-            >
-              {isDeleting ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Trash2 className="h-3 w-3" />
-              )}
-            </Button>
-          )}
-        </div>
       </CardContent>
     </Card>
   )
@@ -476,7 +464,7 @@ export default function ProjectsDashboard() {
 
             const { data: latestUpdate } = await supabase
               .from("updates")
-              .select("created_at")
+              .select("id, created_at")
               .eq("project_id", project.id)
               .order("created_at", { ascending: false })
               .limit(1)
@@ -495,6 +483,7 @@ export default function ProjectsDashboard() {
                 ? formatDate(latestUpdate.created_at)
                 : formatDate(project.created_at),
               createdAt: formatDate(project.created_at),
+              latestUpdateId: latestUpdate?.id,
             }
           })
         )
@@ -514,6 +503,8 @@ export default function ProjectsDashboard() {
   const activeProjects = projects.filter((p) => p.status === "active")
   const completedProjects = projects.filter((p) => p.status === "completed")
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null)
 
   const filterProjects = (projects: Project[]) => {
     if (!searchQuery) return projects
@@ -526,12 +517,19 @@ export default function ProjectsDashboard() {
     )
   }
 
-  const handleDeleteProject = async (projectId: string) => {
-    if (!confirm("Are you sure you want to delete this project? This action cannot be undone.")) {
-      return
+  const handleDeleteClick = (projectId: string) => {
+    const project = projects.find((p) => p.id === projectId)
+    if (project) {
+      setProjectToDelete({ id: projectId, name: project.name })
+      setDeleteDialogOpen(true)
     }
+  }
 
-    setDeletingProjectId(projectId)
+  const handleDeleteConfirm = async () => {
+    if (!projectToDelete) return
+
+    setDeleteDialogOpen(false)
+    setDeletingProjectId(projectToDelete.id)
     try {
       const supabase = createClient()
       
@@ -546,7 +544,7 @@ export default function ProjectsDashboard() {
       const { error: projectUserError } = await supabase
         .from("project_user")
         .delete()
-        .eq("project_id", projectId)
+        .eq("project_id", projectToDelete.id)
         .eq("user_id", user.id)
 
       if (projectUserError) {
@@ -558,7 +556,7 @@ export default function ProjectsDashboard() {
       const { error: deleteError } = await supabase
         .from("projects")
         .delete()
-        .eq("id", projectId)
+        .eq("id", projectToDelete.id)
 
       if (deleteError) {
         throw deleteError
@@ -567,12 +565,13 @@ export default function ProjectsDashboard() {
       toast.success("Project deleted successfully")
       
       // Remove from local state
-      setProjects(projects.filter((p) => p.id !== projectId))
+      setProjects(projects.filter((p) => p.id !== projectToDelete.id))
     } catch (error) {
       console.error("Error deleting project:", error)
       toast.error(error instanceof Error ? error.message : "Failed to delete project")
     } finally {
       setDeletingProjectId(null)
+      setProjectToDelete(null)
     }
   }
 
@@ -711,7 +710,8 @@ export default function ProjectsDashboard() {
                     key={project.id}
                     project={project}
                     canGenerate={userRole === "developer"}
-                    onDelete={handleDeleteProject}
+                    onDelete={handleDeleteConfirm}
+                    onDeleteClick={handleDeleteClick}
                     isDeleting={deletingProjectId === project.id}
                   />
                 ))}
@@ -734,7 +734,8 @@ export default function ProjectsDashboard() {
                     key={project.id}
                     project={project}
                     canGenerate={userRole === "developer"}
-                    onDelete={handleDeleteProject}
+                    onDelete={handleDeleteConfirm}
+                    onDeleteClick={handleDeleteClick}
                     isDeleting={deletingProjectId === project.id}
                   />
                 ))}
@@ -757,7 +758,8 @@ export default function ProjectsDashboard() {
                     key={project.id}
                     project={project}
                     canGenerate={userRole === "developer"}
-                    onDelete={handleDeleteProject}
+                    onDelete={handleDeleteConfirm}
+                    onDeleteClick={handleDeleteClick}
                     isDeleting={deletingProjectId === project.id}
                   />
                 ))}
@@ -768,6 +770,44 @@ export default function ProjectsDashboard() {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent onClose={() => setDeleteDialogOpen(false)}>
+          <DialogHeader>
+            <DialogTitle>Delete Project</DialogTitle>
+            <DialogDescription className="pt-2">
+              Are you sure you want to delete <strong>{projectToDelete?.name}</strong>? This action cannot be undone and will permanently delete the project and all its updates.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false)
+                setProjectToDelete(null)
+              }}
+              disabled={deletingProjectId !== null}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={deletingProjectId !== null}
+            >
+              {deletingProjectId ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete Project"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
