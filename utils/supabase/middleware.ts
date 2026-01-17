@@ -35,9 +35,10 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  const pathname = request.nextUrl.pathname
+
   // Protected routes - redirect to login if not authenticated
   if (!user) {
-    const pathname = request.nextUrl.pathname
     // Allow access to login, auth callback, and public assets
     if (
       pathname === '/login' ||
@@ -53,6 +54,36 @@ export async function updateSession(request: NextRequest) {
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
+
+  // User is authenticated - check role and redirect accordingly
+  const userRole = user.user_metadata?.role || 'developer'
+  const url = request.nextUrl.clone()
+
+  // Skip redirect logic for API routes, static files, and auth routes
+  if (
+    pathname.startsWith('/_next/') ||
+    pathname.startsWith('/api/') ||
+    pathname.startsWith('/auth/') ||
+    pathname.match(/\.(ico|png|jpg|jpeg|svg|gif|webp)$/)
+  ) {
+    return supabaseResponse
+  }
+
+  // If on login page and authenticated, redirect to appropriate dashboard
+  if (pathname === '/login') {
+    url.pathname = userRole === 'reviewer' ? '/demo-project' : '/'
+    return NextResponse.redirect(url)
+  }
+
+  // CRITICAL: If reviewer tries to access developer dashboard root, redirect to reviewer dashboard
+  // This must happen before any other route checks
+  if (userRole === 'reviewer' && pathname === '/') {
+    url.pathname = '/demo-project'
+    return NextResponse.redirect(url)
+  }
+
+  // Allow developers to access any routes (project pages, etc.)
+  // Only restrict reviewers from accessing developer dashboard root
 
   return supabaseResponse
 }

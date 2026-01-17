@@ -329,6 +329,7 @@ export default function ProjectsDashboard() {
   const [searchQuery, setSearchQuery] = useState("")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [userRole, setUserRole] = useState<"developer" | "reviewer" | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     async function fetchUserRole() {
@@ -337,10 +338,19 @@ export default function ProjectsDashboard() {
       if (user) {
         const role = user.user_metadata?.role || "developer"
         setUserRole(role === "reviewer" ? "reviewer" : "developer")
+        
+        // If reviewer, redirect to reviewer dashboard (fallback if middleware didn't catch it)
+        if (role === "reviewer" && window.location.pathname === "/") {
+          router.replace("/demo-project")
+          return
+        }
+      } else {
+        // If not logged in, redirect to login
+        router.replace("/login")
       }
     }
     fetchUserRole()
-  }, [])
+  }, [router])
 
   const activeProjects = mockProjects.filter((p) => p.status === "active")
   const completedProjects = mockProjects.filter((p) => p.status === "completed")
