@@ -6,7 +6,36 @@ import { Input } from "@/components/ui/input"
 import { FileText, Upload, GitBranch, ExternalLink, Calendar, Loader2, X, Check, Pencil, Trash2, FileCheck } from "lucide-react"
 import type { Project } from "@/types/database"
 import { toast } from "sonner"
-import { useMemo } from "react"
+import { useMemo, ReactElement } from "react"
+
+// Helper function to parse and render markdown bold text
+function parseBoldText(text: string) {
+  const parts: Array<string | ReactElement> = []
+  let lastIndex = 0
+  const boldRegex = /\*\*([^*]+)\*\*/g
+  let match
+
+  while ((match = boldRegex.exec(text)) !== null) {
+    // Add text before the bold
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index))
+    }
+    // Add the bold text
+    parts.push(
+      <strong key={match.index} className="font-semibold text-foreground">
+        {match[1]}
+      </strong>
+    )
+    lastIndex = match.index + match[0].length
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex))
+  }
+
+  return parts.length > 0 ? parts : [text]
+}
 
 // Component to render formatted project scope
 function ProjectScopeContent({ content }: { content: string }) {
@@ -36,69 +65,78 @@ function ProjectScopeContent({ content }: { content: string }) {
           const header = lines[0]?.replace(/^##\s*/, '').trim()
           const body = lines.slice(1).join('\n').trim()
 
-          // Check if body has bold sub-sections (like **Customization Options:**)
-          const hasBoldSubsections = body.includes('**') && body.includes(':**')
+          // Process body to group content under bold sub-sections
+          const processedLines: Array<{ type: 'subheader' | 'bullet' | 'paragraph' | 'empty', content: string, indent: number }> = []
+          let currentIndent = 0
+          
+          body.split('\n').forEach((line) => {
+            const trimmedLine = line.trim()
+            
+            if (!trimmedLine) {
+              processedLines.push({ type: 'empty', content: '', indent: 0 })
+              return
+            }
+            
+            // Check if it's a bold sub-section header (like **Customization Options:**)
+            if (trimmedLine.match(/^\*\*.*\*\*:?\s*$/)) {
+              currentIndent = 0
+              processedLines.push({ type: 'subheader', content: trimmedLine, indent: 0 })
+            }
+            // Check if it's a bullet point
+            else if (trimmedLine.match(/^[-*•]\s/)) {
+              // Check if it's nested (starts with spaces before bullet)
+              const indentLevel = (line.match(/^(\s*)/)?.[1]?.length || 0) / 2
+              processedLines.push({ type: 'bullet', content: trimmedLine, indent: indentLevel })
+            }
+            // Regular paragraph
+            else {
+              processedLines.push({ type: 'paragraph', content: trimmedLine, indent: 0 })
+            }
+          })
 
           return (
-            <div key={index} className="space-y-4">
+            <div key={index} className="space-y-5">
               {header && (
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <h4 className="text-lg font-semibold text-foreground">
                     {header}
                   </h4>
                   <div className="h-px bg-gradient-to-r from-primary/20 via-primary/10 to-transparent" />
                 </div>
               )}
-              <div className="text-base text-foreground/80 leading-relaxed space-y-3">
-                {body.split('\n').map((line, lineIndex) => {
-                  const trimmedLine = line.trim()
-                  
-                  // Skip empty lines
-                  if (!trimmedLine) {
-                    return null
+              <div className="text-base text-foreground/80 leading-relaxed">
+                {processedLines.map((item, lineIndex) => {
+                  if (item.type === 'empty') {
+                    return <div key={lineIndex} className="h-2" />
                   }
                   
-                  // Handle bold sub-sections (like **Customization Options:**)
-                  if (trimmedLine.startsWith('**') && trimmedLine.endsWith(':**')) {
-                    const subHeader = trimmedLine.replace(/^\*\*|\*\*:$/g, '').replace(/:$/, '')
+                  if (item.type === 'subheader') {
+                    const subHeader = item.content.replace(/^\*\*|\*\*:?\s*$/g, '').replace(/:$/, '')
                     return (
-                      <div key={lineIndex} className="pt-2">
-                        <h5 className="text-sm font-semibold text-foreground mb-2">
+                      <div key={lineIndex} className="mt-4 mb-3 first:mt-0">
+                        <h5 className="text-base font-semibold text-foreground">
                           {subHeader}
                         </h5>
                       </div>
                     )
                   }
                   
-                  // Handle bullet points
-                  if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ') || trimmedLine.startsWith('• ')) {
-                    const bulletText = trimmedLine.replace(/^[-*•]\s+/, '')
+                  if (item.type === 'bullet') {
+                    const bulletText = item.content.replace(/^[-*•]\s+/, '')
                     return (
-                      <div key={lineIndex} className="flex items-start gap-3 pl-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
-                        <span className="flex-1 text-foreground/75">{bulletText}</span>
-                      </div>
-                    )
-                  }
-                  
-                  // Handle numbered lists
-                  if (/^\d+\.\s/.test(trimmedLine)) {
-                    const number = trimmedLine.match(/^\d+/)?.[0]
-                    const listText = trimmedLine.replace(/^\d+\.\s+/, '')
-                    return (
-                      <div key={lineIndex} className="flex items-start gap-3 pl-1">
-                        <span className="text-primary font-semibold mt-0.5 min-w-[1.75rem] text-sm">
-                          {number}.
-                        </span>
-                        <span className="flex-1 text-foreground/75">{listText}</span>
+                      <div key={lineIndex} className={`flex items-start gap-3 ${item.indent > 0 ? 'ml-6' : 'ml-1'} mb-2`}>
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2.5 flex-shrink-0" />
+                        <div className="flex-1 text-foreground/75">
+                          {parseBoldText(bulletText)}
+                        </div>
                       </div>
                     )
                   }
                   
                   // Regular paragraph
                   return (
-                    <p key={lineIndex} className="text-foreground/80 leading-relaxed">
-                      {trimmedLine}
+                    <p key={lineIndex} className="text-foreground/80 leading-relaxed mb-3">
+                      {parseBoldText(item.content)}
                     </p>
                   )
                 })}
