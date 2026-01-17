@@ -1,16 +1,17 @@
-import { createClient } from '@/utils/supabase/server'
+import { createServiceClient } from '@/utils/supabase/service'
 import { NextResponse } from 'next/server'
 import { updateWebhookEventStatus } from '@/lib/webhook-processor'
 
 export async function POST(
   request: Request,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   const startTime = Date.now()
-  console.log('🎬 Video generation started for project:', params.projectId)
+  const { projectId } = await params
+  console.log('🎬 Video generation started for project:', projectId)
 
   try {
-    const supabase = await createClient()
+    const supabase = createServiceClient()
     const { webhookEventId } = await request.json()
 
     if (!webhookEventId) {
@@ -37,7 +38,7 @@ export async function POST(
     const { data: project, error: projectError } = await supabase
       .from('projects')
       .select('id, name, live_url')
-      .eq('id', params.projectId)
+      .eq('id', projectId)
       .single()
 
     if (projectError || !project) {
@@ -137,7 +138,7 @@ export async function POST(
     const { data: update, error: updateError } = await supabase
       .from('updates')
       .insert({
-        project_id: params.projectId,
+        project_id: projectId,
         webhook_event_id: webhookEventId,
         title: webhookEvent.pr_title,
         video_url: combineData.finalVideoPath,

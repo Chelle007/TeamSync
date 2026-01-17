@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createServiceClient } from "@/utils/supabase/service";
 
 /**
  * Extract owner and repo from GitHub URL
@@ -27,7 +27,7 @@ export function parseGitHubRepoUrl(
 export async function findProjectByRepo(repoFullName: string) {
   console.log('🔍 [findProjectByRepo] Starting search for repo:', repoFullName);
   
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   // Get all projects with github_url
   const { data: projects, error } = await supabase
@@ -85,7 +85,7 @@ export async function findProjectByRepo(repoFullName: string) {
  * Get user's GitHub token from their profile
  */
 export async function getUserGitHubToken(userId: string) {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data: profile, error } = await supabase
     .from("profiles")
@@ -104,7 +104,7 @@ export async function getUserGitHubToken(userId: string) {
  * Get project owner's GitHub token
  */
 export async function getProjectOwnerGitHubToken(projectId: string) {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   // Find project owner
   const { data: projectUser, error: projectUserError } = await supabase
@@ -136,11 +136,15 @@ export async function storeWebhookEvent(data: {
   mergedAt: string;
   rawPayload: any;
 }) {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
+
+  // Generate UUID explicitly since the database default may not work
+  const id = crypto.randomUUID();
 
   const { data: event, error } = await supabase
     .from("webhook_events")
     .insert({
+      id,
       project_id: data.projectId,
       event_type: data.eventType,
       pr_number: data.prNumber,
@@ -170,7 +174,7 @@ export async function updateWebhookEventStatus(
   status: "pending" | "processing" | "completed" | "failed",
   errorMessage?: string,
 ) {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const updateData: any = {
     processing_status: status,
