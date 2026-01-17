@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState, type ReactNode } from "react"
 import { TabsContent } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { Eye, MessageSquare, Pencil, Send, Sparkles } from "lucide-react"
 import type { Update } from "@/types/database"
+
+// ============================================================================
+// Types
+// ============================================================================
 
 type PendingItem = {
   id: string
@@ -68,7 +72,35 @@ type AssistantTabProps = {
   updates: Update[]
 }
 
-function sendToDeveloperAPI(_pendingItem: PendingItem): Promise<void> {
+// ============================================================================
+// Constants
+// ============================================================================
+
+const ESCALATION_KEYWORDS = [
+  "fastest way",
+  "timeline",
+  "estimate",
+  "how long",
+  "architecture",
+] as const
+
+const STATUS_STYLES = {
+  draft: "bg-amber-500/10 text-amber-400 border border-amber-500/30",
+  waiting_for_developer: "bg-blue-500/10 text-blue-400 border border-blue-500/30",
+  answered: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30",
+} as const
+
+const DEV_STATUS_STYLES = {
+  new: "bg-amber-500/10 text-amber-400 border border-amber-500/30",
+  in_progress: "bg-blue-500/10 text-blue-400 border border-blue-500/30",
+  replied: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30",
+} as const
+
+// ============================================================================
+// API Functions
+// ============================================================================
+
+async function sendToDeveloperAPI(_pendingItem: PendingItem): Promise<void> {
   return Promise.resolve()
 }
 
@@ -76,13 +108,70 @@ async function sendDeveloperReplyAPI(_requestId: string, _replyText: string): Pr
   return Promise.resolve()
 }
 
-const escalationKeywords = [
-  "fastest way",
-  "timeline",
-  "estimate",
-  "how long",
-  "architecture",
-]
+// ============================================================================
+// Helper Components
+// ============================================================================
+
+function Modal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string
+  onClose: () => void
+  children: ReactNode
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 animate-in fade-in-0">
+      <div className="w-full max-w-lg rounded-2xl border border-border/50 bg-card/95 backdrop-blur-xl p-6 shadow-lg animate-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between mb-6 pb-4 border-b">
+          <h4 className="text-lg font-semibold">{title}</h4>
+          <Button size="sm" variant="ghost" onClick={onClose} className="h-8 w-8 p-0">
+            ✕
+          </Button>
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function StatusBadge({
+  status,
+  statusType = "reviewer",
+}: {
+  status: string
+  statusType?: "reviewer" | "developer"
+}) {
+  const styles = statusType === "developer" ? DEV_STATUS_STYLES : STATUS_STYLES
+  const label =
+    statusType === "developer"
+      ? status === "new"
+        ? "New"
+        : status === "in_progress"
+        ? "In Progress"
+        : "Replied"
+      : status === "draft"
+      ? "Draft"
+      : status === "waiting_for_developer"
+      ? "Waiting for Developer"
+      : "Answered"
+
+  return (
+    <span
+      className={cn(
+        "text-[10px] font-medium uppercase tracking-wide px-2.5 py-1 rounded-full whitespace-nowrap",
+        styles[status as keyof typeof styles]
+      )}
+    >
+      {label}
+    </span>
+  )
+}
+
+// ============================================================================
+// Main Component
+// ============================================================================
 
 export function AssistantTab({ isDeveloperView }: AssistantTabProps) {
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([
@@ -203,23 +292,9 @@ export function AssistantTab({ isDeveloperView }: AssistantTabProps) {
   const [sentReplies, setSentReplies] = useState<string[]>([])
   const [replyStatus, setReplyStatus] = useState<string | null>(null)
 
-  const statusStyles = useMemo(
-    () => ({
-      draft: "bg-amber-500/10 text-amber-400 border border-amber-500/30",
-      waiting_for_developer: "bg-blue-500/10 text-blue-400 border border-blue-500/30",
-      answered: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30",
-    }),
-    []
-  )
-
-  const devStatusStyles = useMemo(
-    () => ({
-      new: "bg-amber-500/10 text-amber-400 border border-amber-500/30",
-      in_progress: "bg-blue-500/10 text-blue-400 border border-blue-500/30",
-      replied: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30",
-    }),
-    []
-  )
+  // ============================================================================
+  // Handlers - Reviewer View
+  // ============================================================================
 
   const addMessage = (message: ChatMessage) => {
     setMessages((prev) => [...prev, message])
@@ -239,7 +314,7 @@ export function AssistantTab({ isDeveloperView }: AssistantTabProps) {
     setInputValue("")
 
     const lower = trimmed.toLowerCase()
-    const needsEscalation = escalationKeywords.some((keyword) => lower.includes(keyword))
+    const needsEscalation = ESCALATION_KEYWORDS.some((keyword) => lower.includes(keyword))
     if (needsEscalation) {
       addMessage({
         id: `assistant-${Date.now() + 1}`,
@@ -333,6 +408,10 @@ export function AssistantTab({ isDeveloperView }: AssistantTabProps) {
     }, 2300)
   }
 
+  // ============================================================================
+  // Handlers - Developer View
+  // ============================================================================
+
   const handleDevSend = () => {
     const trimmed = devInputValue.trim()
     if (!trimmed) return
@@ -396,65 +475,65 @@ export function AssistantTab({ isDeveloperView }: AssistantTabProps) {
     return (
       <TabsContent value="assistant" className="mt-8">
         <div className="grid xl:grid-cols-[1fr_1.8fr] gap-6">
-          <Card className="border bg-card/90 min-h-[720px]">
-            <CardContent className="p-6 space-y-5 h-full flex flex-col">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <h3 className="text-lg font-semibold">Incoming Requests</h3>
+          <Card className="border border-border/50 bg-card/95 backdrop-blur-sm">
+            <CardContent className="p-6 space-y-6 h-[calc(100vh-12rem)] flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between pb-4 border-b flex-shrink-0">
+                <div className="space-y-1.5">
+                  <h3 className="text-lg font-semibold tracking-tight">Incoming Requests</h3>
                   <p className="text-sm text-muted-foreground">
                     Reviewer questions that need your response.
                   </p>
                 </div>
-                <Badge variant="secondary" className="text-xs">
+                <Badge variant="secondary" className="text-xs font-medium h-6 px-2.5">
                   {incomingRequests.length}
                 </Badge>
               </div>
 
-              <div className="space-y-4 flex-1 overflow-y-auto pr-2">
-                {incomingRequests.map((request) => (
-                  <div
-                    key={request.id}
-                    className="rounded-xl border bg-muted/40 p-4 space-y-3"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold line-clamp-2">
-                          {request.refinedQuestion || request.question}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {request.reason}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground mt-2">
-                          From: {request.from} • {request.createdAt}
-                        </p>
-                      </div>
-                      <span
-                        className={cn(
-                          "text-[10px] uppercase tracking-wide px-2.5 py-1 rounded-full",
-                          devStatusStyles[request.status]
-                        )}
-                      >
-                        {request.status === "new"
-                          ? "New"
-                          : request.status === "in_progress"
-                          ? "In Progress"
-                          : "Replied"}
-                      </span>
+              <div className="space-y-3 flex-1 overflow-y-auto pr-2 min-h-0">
+                {incomingRequests.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full py-12 text-center">
+                    <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+                      <MessageSquare className="h-8 w-8 text-muted-foreground/50" />
                     </div>
+                    <p className="text-sm font-medium text-muted-foreground">No incoming requests</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1">All caught up!</p>
+                  </div>
+                ) : (
+                  incomingRequests.map((request) => (
+                    <div
+                      key={request.id}
+                      className="rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 transition-colors p-4 space-y-3 group"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold line-clamp-2 leading-snug">
+                            {request.refinedQuestion || request.question}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                            {request.reason}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground/70 mt-2 flex items-center gap-1.5">
+                            <span>From: {request.from}</span>
+                            <span>•</span>
+                            <span>{request.createdAt}</span>
+                          </p>
+                        </div>
+                        <StatusBadge status={request.status} statusType="developer" />
+                      </div>
 
-                    <div className="flex items-center justify-between gap-3 pt-1">
-                      <Button
-                        size="sm"
-                        className="flex-1"
-                        disabled={request.status === "replied"}
-                        onClick={() => handleReplyOpen(request)}
-                      >
-                        {request.status === "replied" ? "View Reply" : "Reply"}
-                      </Button>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/30">
+                        <Button
+                          size="sm"
+                          className="flex-1 h-9 font-medium"
+                          disabled={request.status === "replied"}
+                          onClick={() => handleReplyOpen(request)}
+                        >
+                          {request.status === "replied" ? "View Reply" : "Reply"}
+                        </Button>
                         <Button
                           size="icon"
                           variant="ghost"
+                          className="h-9 w-9"
                           onClick={() => setSelectedDevView(request)}
                           aria-label="View request"
                         >
@@ -462,46 +541,45 @@ export function AssistantTab({ isDeveloperView }: AssistantTabProps) {
                         </Button>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
-              <div className="h-24" />
             </CardContent>
           </Card>
 
-          <Card className="border bg-card/90 min-h-[720px]">
-            <CardContent className="p-6 flex flex-col gap-6 h-full">
-              <div className="flex items-center gap-2">
-                <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-                  <Sparkles className="h-4 w-4" />
+          <Card className="border border-border/50 bg-card/95 backdrop-blur-sm">
+            <CardContent className="p-6 flex flex-col gap-6 h-[calc(100vh-12rem)] overflow-hidden">
+              <div className="flex items-center gap-3 pb-4 border-b flex-shrink-0">
+                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 text-primary flex items-center justify-center">
+                  <Sparkles className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold">AI Assistant</h3>
+                  <h3 className="text-lg font-semibold tracking-tight">AI Assistant</h3>
                   <p className="text-sm text-muted-foreground">
                     Draft responses and get suggestions for reviewer replies.
                   </p>
                 </div>
               </div>
 
-              <div className="flex-1 space-y-4 overflow-y-auto pr-2">
+              <div className="flex-1 space-y-3 overflow-y-auto pr-2 min-h-0">
                 {devMessages.map((message) => (
                   <div
                     key={message.id}
                     className={cn(
-                      "flex",
+                      "flex animate-in fade-in-0 slide-in-from-bottom-2 duration-200",
                       message.role === "developer" ? "justify-end" : "justify-start"
                     )}
                   >
                     <div
                       className={cn(
-                        "max-w-[80%] rounded-2xl px-4 py-3 text-sm space-y-3",
+                        "max-w-[80%] rounded-2xl px-4 py-2.5 text-sm space-y-1.5",
                         message.role === "developer"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted/50 text-foreground border border-muted"
+                          ? "bg-primary text-primary-foreground rounded-br-sm"
+                          : "bg-muted/60 text-foreground border border-border/50 rounded-bl-sm"
                       )}
                     >
                       <p className="leading-relaxed">{message.content}</p>
-                      <span className="text-[10px] text-muted-foreground block">
+                      <span className="text-[10px] opacity-70 block">
                         {message.timestamp}
                       </span>
                     </div>
@@ -509,11 +587,11 @@ export function AssistantTab({ isDeveloperView }: AssistantTabProps) {
                 ))}
               </div>
 
-              <div className="border-t pt-8 space-y-3">
-                <div className="flex items-center gap-2 rounded-xl border bg-muted/40 px-3 py-2">
-                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              <div className="border-t pt-4 space-y-3 flex-shrink-0">
+                <div className="flex items-center gap-2 rounded-xl border border-border/50 bg-background/50 backdrop-blur-sm px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+                  <MessageSquare className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <Input
-                    className="border-0 bg-transparent focus-visible:ring-0"
+                    className="border-0 bg-transparent focus-visible:ring-0 placeholder:text-muted-foreground/60 text-sm"
                     placeholder="Ask the AI assistant..."
                     value={devInputValue}
                     onChange={(event) => setDevInputValue(event.target.value)}
@@ -524,124 +602,92 @@ export function AssistantTab({ isDeveloperView }: AssistantTabProps) {
                       }
                     }}
                   />
-                  <Button size="sm" onClick={handleDevSend}>
+                  <Button size="sm" onClick={handleDevSend} className="h-8 w-8 p-0 flex-shrink-0">
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
-                <div className="h-8" />
               </div>
             </CardContent>
           </Card>
         </div>
 
         {selectedDevView && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-            <div className="w-full max-w-lg rounded-2xl border bg-card p-6 shadow-xl">
-              <div className="flex items-center justify-between">
-                <h4 className="text-lg font-semibold">Incoming Request</h4>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setSelectedDevView(null)}
-                >
-                  Close
-                </Button>
+          <Modal title="Incoming Request" onClose={() => setSelectedDevView(null)}>
+            <div className="space-y-5 text-sm">
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Question</p>
+                <p className="font-medium leading-relaxed text-base">
+                  {selectedDevView.refinedQuestion || selectedDevView.question}
+                </p>
               </div>
-              <div className="space-y-4 text-sm mt-4">
-                <div>
-                  <p className="text-xs text-muted-foreground">Question</p>
-                  <p className="font-medium">
-                    {selectedDevView.refinedQuestion || selectedDevView.question}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Reason</p>
-                  <p>{selectedDevView.reason}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span
-                    className={cn(
-                      "text-[10px] uppercase tracking-wide px-2 py-1 rounded-full",
-                      devStatusStyles[selectedDevView.status]
-                    )}
-                  >
-                    {selectedDevView.status === "new"
-                      ? "New"
-                      : selectedDevView.status === "in_progress"
-                      ? "In Progress"
-                      : "Replied"}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    From {selectedDevView.from} • {selectedDevView.createdAt}
-                  </span>
-                </div>
-                {selectedDevView.developerReply && (
-                  <div className="rounded-lg border bg-muted/40 p-3">
-                    <p className="text-xs text-muted-foreground">Reply</p>
-                    <p className="mt-1">{selectedDevView.developerReply}</p>
-                  </div>
-                )}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Reason</p>
+                <p className="leading-relaxed">{selectedDevView.reason}</p>
               </div>
+              <div className="flex items-center gap-3 pt-2 border-t">
+                <StatusBadge status={selectedDevView.status} statusType="developer" />
+                <span className="text-xs text-muted-foreground">
+                  From {selectedDevView.from} • {selectedDevView.createdAt}
+                </span>
+              </div>
+              {selectedDevView.developerReply && (
+                <div className="rounded-lg border border-border/50 bg-muted/40 p-4">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Reply</p>
+                  <p className="leading-relaxed">{selectedDevView.developerReply}</p>
+                </div>
+              )}
             </div>
-          </div>
+          </Modal>
         )}
 
         {selectedDevReply && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-            <div className="w-full max-w-lg rounded-2xl border bg-card p-6 shadow-xl">
-              <div className="flex items-center justify-between">
-                <h4 className="text-lg font-semibold">Reply to Reviewer</h4>
+          <Modal title="Reply to Reviewer" onClose={() => setSelectedDevReply(null)}>
+            <div className="space-y-5 text-sm">
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Question</p>
+                <p className="font-medium leading-relaxed text-base">
+                  {selectedDevReply.refinedQuestion || selectedDevReply.question}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Reason</p>
+                <p className="leading-relaxed">{selectedDevReply.reason}</p>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Your reply</p>
+                <Textarea
+                  value={devReplyText}
+                  onChange={(event) => setDevReplyText(event.target.value)}
+                  className="min-h-[140px] resize-none border-border/50"
+                  placeholder="Type your reply here..."
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3 pt-2 border-t">
                 <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setSelectedDevReply(null)}
+                  variant="outline"
+                  className="h-9"
+                  onClick={() =>
+                    setDevReplyText(
+                      "(Draft) We can share an updated timeline after confirming scope. The fastest route is shipping core flows first, then iterating weekly."
+                    )
+                  }
                 >
-                  Close
+                  Generate Draft
                 </Button>
-              </div>
-              <div className="space-y-4 text-sm mt-4">
-                <div>
-                  <p className="text-xs text-muted-foreground">Question</p>
-                  <p className="font-medium">
-                    {selectedDevReply.refinedQuestion || selectedDevReply.question}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Reason</p>
-                  <p>{selectedDevReply.reason}</p>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">Your reply</p>
-                  <Textarea
-                    value={devReplyText}
-                    onChange={(event) => setDevReplyText(event.target.value)}
-                    className="min-h-[140px]"
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      setDevReplyText(
-                        "(Draft) We can share an updated timeline after confirming scope. The fastest route is shipping core flows first, then iterating weekly."
-                      )
-                    }
-                  >
-                    Generate Draft
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" className="h-9" onClick={() => setSelectedDevReply(null)}>
+                    Cancel
                   </Button>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => setSelectedDevReply(null)}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleSendReply}>Send Reply</Button>
-                  </div>
+                  <Button onClick={handleSendReply} className="h-9">Send Reply</Button>
                 </div>
-                {replyStatus && (
-                  <p className="text-xs text-emerald-400">{replyStatus}</p>
-                )}
               </div>
+              {replyStatus && (
+                <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-2">
+                  <p className="text-xs font-medium text-emerald-400">{replyStatus}</p>
+                </div>
+              )}
             </div>
-          </div>
+          </Modal>
         )}
         {sentReplies.length > 0 && (
           <div className="sr-only" aria-live="polite">
@@ -655,125 +701,126 @@ export function AssistantTab({ isDeveloperView }: AssistantTabProps) {
   return (
     <TabsContent value="assistant" className="mt-8">
       <div className="grid xl:grid-cols-[1fr_1.8fr] gap-6">
-        <Card className="border bg-card/90 min-h-[720px]">
-          <CardContent className="p-6 space-y-5 h-full flex flex-col">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <h3 className="text-lg font-semibold">Pending Review</h3>
+        <Card className="border border-border/50 bg-card/95 backdrop-blur-sm">
+          <CardContent className="p-6 space-y-6 h-[calc(100vh-12rem)] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between pb-4 border-b flex-shrink-0">
+              <div className="space-y-1.5">
+                <h3 className="text-lg font-semibold tracking-tight">Pending Review</h3>
                 <p className="text-sm text-muted-foreground">
                   Questions that need developer input before you can respond.
                 </p>
               </div>
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="text-xs font-medium h-6 px-2.5">
                 {pendingItems.length}
               </Badge>
             </div>
 
-            <div className="space-y-4 flex-1 overflow-y-auto pr-2">
-              {pendingItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-xl border bg-muted/40 p-4 space-y-3"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold line-clamp-2">
-                        {item.refinedQuestion || item.originalQuestion}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {item.reason}
-                      </p>
-                    </div>
-                    <span
-                      className={cn(
-                        "text-[10px] uppercase tracking-wide px-2.5 py-1 rounded-full",
-                        statusStyles[item.status]
-                      )}
-                    >
-                      {item.status === "draft"
-                        ? "Draft"
-                        : item.status === "waiting_for_developer"
-                        ? "Waiting for Developer"
-                        : "Answered"}
-                    </span>
+            <div className="space-y-3 flex-1 overflow-y-auto pr-2 min-h-0 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
+              {pendingItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full py-12 text-center">
+                  <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+                    <MessageSquare className="h-8 w-8 text-muted-foreground/50" />
                   </div>
-
-                  <div className="flex items-center justify-between gap-3 pt-1">
-                    <Button
-                      size="sm"
-                      className="flex-1"
-                      disabled={item.status !== "draft"}
-                      onClick={() => {
-                        setConfirmItem(item)
-                        setConfirmStep(1)
-                      }}
-                    >
-                      Send to Developer
-                    </Button>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setSelectedViewItem(item)}
-                        aria-label="View pending item"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        disabled={item.status !== "draft"}
-                        onClick={() => handleRefineOpen(item)}
-                        aria-label="Refine pending item"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
+                  <p className="text-sm font-medium text-muted-foreground">No pending items</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">All questions answered!</p>
                 </div>
-              ))}
+              ) : (
+                pendingItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 transition-colors p-4 space-y-3 group"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold line-clamp-2 leading-snug">
+                          {item.refinedQuestion || item.originalQuestion}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                          {item.reason}
+                        </p>
+                      </div>
+                      <StatusBadge status={item.status} statusType="reviewer" />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/30">
+                      <Button
+                        size="sm"
+                        className="flex-1 h-9 font-medium"
+                        disabled={item.status !== "draft"}
+                        onClick={() => {
+                          setConfirmItem(item)
+                          setConfirmStep(1)
+                        }}
+                      >
+                        Send to Developer
+                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-9 w-9"
+                          onClick={() => setSelectedViewItem(item)}
+                          aria-label="View pending item"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-9 w-9"
+                          disabled={item.status !== "draft"}
+                          onClick={() => handleRefineOpen(item)}
+                          aria-label="Refine pending item"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-            <div className="h-24" />
           </CardContent>
         </Card>
 
-        <Card className="border bg-card/90 min-h-[720px]">
-          <CardContent className="p-6 flex flex-col gap-6 h-full">
-            <div className="flex items-center gap-2">
-              <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-                <Sparkles className="h-4 w-4" />
+        <Card className="border border-border/50 bg-card/95 backdrop-blur-sm">
+          <CardContent className="p-6 flex flex-col gap-6 h-[calc(100vh-12rem)] overflow-hidden">
+            <div className="flex items-center gap-3 pb-4 border-b flex-shrink-0">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 text-primary flex items-center justify-center">
+                <Sparkles className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">AI Assistant</h3>
+                <h3 className="text-lg font-semibold tracking-tight">AI Assistant</h3>
                 <p className="text-sm text-muted-foreground">
                   Ask questions and get quick answers based on project context.
                 </p>
               </div>
             </div>
 
-            <div className="flex-1 space-y-4 overflow-y-auto pr-2">
+            <div className="flex-1 space-y-3 overflow-y-auto pr-2 min-h-0">
               {messages.map((message) => (
                 <div
                   key={message.id}
                   className={cn(
-                    "flex",
+                    "flex animate-in fade-in-0 slide-in-from-bottom-2 duration-200",
                     message.role === "user" ? "justify-end" : "justify-start"
                   )}
                 >
                   <div
                     className={cn(
-                      "max-w-[80%] rounded-2xl px-4 py-3 text-sm space-y-3",
+                      "max-w-[80%] rounded-2xl px-4 py-2.5 text-sm space-y-2 shadow-sm",
                       message.role === "user"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted/50 text-foreground border border-muted"
+                        ? "bg-primary text-primary-foreground rounded-br-sm"
+                        : "bg-muted/60 text-foreground border border-border/50 rounded-bl-sm"
                     )}
                   >
                     <p className="leading-relaxed">{message.content}</p>
                     {message.actions === "escalate" && (
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2 pt-1">
                         <Button
                           size="sm"
                           variant="default"
+                          className="h-7 text-xs font-medium"
                           onClick={() => handleEscalationDecision(true, message)}
                         >
                           Yes, send
@@ -781,13 +828,14 @@ export function AssistantTab({ isDeveloperView }: AssistantTabProps) {
                         <Button
                           size="sm"
                           variant="outline"
+                          className="h-7 text-xs font-medium"
                           onClick={() => handleEscalationDecision(false, message)}
                         >
                           No
                         </Button>
                       </div>
                     )}
-                    <span className="text-[10px] text-muted-foreground block">
+                    <span className="text-[10px] opacity-70 block">
                       {message.timestamp}
                     </span>
                   </div>
@@ -795,11 +843,11 @@ export function AssistantTab({ isDeveloperView }: AssistantTabProps) {
               ))}
             </div>
 
-            <div className="border-t pt-8 space-y-3">
-              <div className="flex items-center gap-2 rounded-xl border bg-muted/40 px-3 py-2">
-                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+            <div className="border-t pt-4 space-y-3">
+              <div className="flex items-center gap-2 rounded-xl border border-border/50 bg-background/50 backdrop-blur-sm px-3 py-2.5 shadow-sm focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+                <MessageSquare className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <Input
-                  className="border-0 bg-transparent focus-visible:ring-0"
+                  className="border-0 bg-transparent focus-visible:ring-0 placeholder:text-muted-foreground/60 text-sm"
                   placeholder="Ask the AI assistant..."
                   value={inputValue}
                   onChange={(event) => setInputValue(event.target.value)}
@@ -810,124 +858,92 @@ export function AssistantTab({ isDeveloperView }: AssistantTabProps) {
                     }
                   }}
                 />
-                <Button size="sm" onClick={handleSend}>
+                <Button size="sm" onClick={handleSend} className="h-8 w-8 p-0 flex-shrink-0">
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="h-8" />
             </div>
           </CardContent>
         </Card>
       </div>
 
       {selectedViewItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-lg rounded-2xl border bg-card p-6 shadow-xl">
-            <div className="flex items-center justify-between">
-              <h4 className="text-lg font-semibold">Pending Review Details</h4>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setSelectedViewItem(null)}
-              >
-                Close
-              </Button>
+        <Modal title="Pending Review Details" onClose={() => setSelectedViewItem(null)}>
+          <div className="space-y-5 text-sm">
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Question</p>
+              <p className="font-medium leading-relaxed text-base">
+                {selectedViewItem.refinedQuestion || selectedViewItem.originalQuestion}
+              </p>
             </div>
-            <div className="space-y-4 text-sm mt-4">
-              <div>
-                <p className="text-xs text-muted-foreground">Question</p>
-                <p className="font-medium">
-                  {selectedViewItem.refinedQuestion || selectedViewItem.originalQuestion}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Reason</p>
-                <p>{selectedViewItem.reason}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span
-                  className={cn(
-                    "text-[10px] uppercase tracking-wide px-2 py-1 rounded-full",
-                    statusStyles[selectedViewItem.status]
-                  )}
-                >
-                  {selectedViewItem.status === "draft"
-                    ? "Draft"
-                    : selectedViewItem.status === "waiting_for_developer"
-                    ? "Waiting for Developer"
-                    : "Answered"}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Created {selectedViewItem.createdAt}
-                </span>
-              </div>
-              {selectedViewItem.developerReply && (
-                <div className="rounded-lg border bg-muted/40 p-3">
-                  <p className="text-xs text-muted-foreground">Developer Reply</p>
-                  <p className="mt-1">{selectedViewItem.developerReply}</p>
-                </div>
-              )}
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Reason</p>
+              <p className="leading-relaxed">{selectedViewItem.reason}</p>
             </div>
+            <div className="flex items-center gap-3 pt-2 border-t">
+              <StatusBadge status={selectedViewItem.status} statusType="reviewer" />
+              <span className="text-xs text-muted-foreground">
+                Created {selectedViewItem.createdAt}
+              </span>
+            </div>
+            {selectedViewItem.developerReply && (
+              <div className="rounded-lg border border-border/50 bg-muted/40 p-4">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Developer Reply</p>
+                <p className="leading-relaxed">{selectedViewItem.developerReply}</p>
+              </div>
+            )}
           </div>
-        </div>
+        </Modal>
       )}
 
       {selectedRefineItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-lg rounded-2xl border bg-card p-6 shadow-xl">
-            <div className="flex items-center justify-between">
-              <h4 className="text-lg font-semibold">Refine Question</h4>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setSelectedRefineItem(null)}
-              >
-                Close
-              </Button>
-            </div>
-            <div className="space-y-3 mt-4">
-              <Textarea
-                value={refineText}
-                onChange={(event) => setRefineText(event.target.value)}
-                className="min-h-[120px]"
-              />
-            </div>
-            <div className="flex justify-end gap-2 mt-4">
-              <Button variant="outline" onClick={() => setSelectedRefineItem(null)}>
+        <Modal title="Refine Question" onClose={() => setSelectedRefineItem(null)}>
+          <div className="space-y-4">
+            <Textarea
+              value={refineText}
+              onChange={(event) => setRefineText(event.target.value)}
+              className="min-h-[120px] resize-none border-border/50"
+              placeholder="Refine your question here..."
+            />
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <Button variant="outline" className="h-9" onClick={() => setSelectedRefineItem(null)}>
                 Cancel
               </Button>
-              <Button onClick={handleRefineApply}>Apply changes</Button>
+              <Button onClick={handleRefineApply} className="h-9">Apply changes</Button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {confirmItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-xl">
-            <div className="space-y-2">
-              <h4 className="text-lg font-semibold">
-                {confirmStep === 1
-                  ? "Send this request to developer?"
-                  : "Confirm send"}
-              </h4>
-              <p className="text-sm text-muted-foreground">
-                {confirmStep === 1
-                  ? "We’ll send this question to the developer for input."
-                  : "You won’t be able to edit after sending."}
-              </p>
-            </div>
-            <div className="flex justify-end gap-2 mt-4">
+        <Modal
+          title={
+            confirmStep === 1
+              ? "Send this request to developer?"
+              : "Confirm send"
+          }
+          onClose={() => {
+            setConfirmItem(null)
+            setConfirmStep(1)
+          }}
+        >
+          <div className="space-y-5">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {confirmStep === 1
+                ? "We'll send this question to the developer for input."
+                : "You won't be able to edit after sending."}
+            </p>
+            <div className="flex justify-end gap-2 pt-2 border-t">
               {confirmStep === 1 ? (
                 <>
-                  <Button variant="outline" onClick={() => setConfirmItem(null)}>
+                  <Button variant="outline" className="h-9" onClick={() => setConfirmItem(null)}>
                     Cancel
                   </Button>
-                  <Button onClick={() => setConfirmStep(2)}>Continue</Button>
+                  <Button onClick={() => setConfirmStep(2)} className="h-9">Continue</Button>
                 </>
               ) : (
                 <>
-                  <Button variant="outline" onClick={() => setConfirmStep(1)}>
+                  <Button variant="outline" className="h-9" onClick={() => setConfirmStep(1)}>
                     Back
                   </Button>
                   <Button
@@ -938,6 +954,7 @@ export function AssistantTab({ isDeveloperView }: AssistantTabProps) {
                       setConfirmItem(null)
                       setConfirmStep(1)
                     }}
+                    className="h-9"
                   >
                     Send
                   </Button>
@@ -945,7 +962,7 @@ export function AssistantTab({ isDeveloperView }: AssistantTabProps) {
               )}
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </TabsContent>
   )
