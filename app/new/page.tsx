@@ -346,6 +346,27 @@ export default function NewProjectPage() {
 
       toast.success("Project created successfully!")
       
+      // Automatically generate Update 1 if GitHub repo is linked
+      if (formData.githubRepo.trim()) {
+        // Generate Update 1 in the background (don't wait for it)
+        fetch(`/api/projects/${project.id}/updates`, {
+          method: 'POST',
+        })
+          .then(async (response) => {
+            if (response.ok) {
+              toast.success("Update 1 generated successfully!")
+            } else {
+              const data = await response.json()
+              console.error('Failed to generate Update 1:', data.error)
+              // Don't show error toast - it's not critical, user can generate manually
+            }
+          })
+          .catch((error) => {
+            console.error('Error generating Update 1:', error)
+            // Don't show error toast - it's not critical
+          })
+      }
+      
       // Redirect to project page
       router.push(`/${project.id}`)
     } catch (error) {
