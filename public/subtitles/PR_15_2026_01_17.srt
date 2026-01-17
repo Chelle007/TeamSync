@@ -1,0 +1,20 @@
+1
+00:00:00,000 --> 00:00:05,339
+In this update, we've given the ticket tier cards a refreshing makeover with a new lime color palette!
+
+2
+00:00:05,339 --> 00:00:11,465
+When you select a tier, the card now showcases a striking lime border and background, making it pop against the page.
+
+3
+00:00:11,465 --> 00:00:12,983
+And for the unselected tiers?
+
+4
+00:00:12,983 --> 00:00:17,537
+They've been updated to a softer lime shade, ensuring a cohesive look across the board.
+
+5
+00:00:17,537 --> 00:00:19,056
+Let's check it out in action!
+
