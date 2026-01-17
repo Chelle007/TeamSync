@@ -153,7 +153,7 @@ export default function GeneratorWizard() {
       <main className="max-w-3xl mx-auto px-6 py-8">
         {/* Back to projects */}
         <Link
-          href="/dashboard"
+          href="/"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -473,7 +473,7 @@ export default function GeneratorWizard() {
                     Generate Another
                   </Button>
                   <Button variant="ghost" asChild>
-                    <Link href="/dashboard">
+                    <Link href="/">
                       Back to Projects
                     </Link>
                   </Button>
