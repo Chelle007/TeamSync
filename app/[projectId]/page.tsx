@@ -557,7 +557,7 @@ export default function ReviewerPortal() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex">
       {/* Sidebar */}
-      <aside className="hidden lg:flex w-64 border-r bg-background/95 backdrop-blur-sm flex-col justify-between shadow-sm">
+      <aside className="hidden lg:flex fixed left-0 top-0 h-screen w-64 border-r bg-background/95 backdrop-blur-sm flex-col justify-between shadow-sm z-30">
         <div className="p-6 space-y-8">
           <Link href="/" className="flex items-center gap-2 group">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary via-primary to-primary/80 flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105">
@@ -592,13 +592,9 @@ export default function ReviewerPortal() {
             ))}
           </nav>
         </div>
-        <div className="border-t p-4 text-xs text-muted-foreground bg-muted/30">
-          <p className="font-medium mb-1">Project Access</p>
-          <p>Managed by your developer</p>
-        </div>
       </aside>
 
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col lg:ml-64">
         {/* Top Bar */}
         <header className="border-b bg-background/95 backdrop-blur-sm sticky top-0 z-40 shadow-sm">
           <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
