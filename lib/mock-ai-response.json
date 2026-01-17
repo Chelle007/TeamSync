@@ -1,20 +1,20 @@
 {
-  "script": "In this update, Desmond made two key changes to the event landing page. First, the location was updated from San Francisco, California to Singapore, NUS to reflect the new venue. Second, the call-to-action button text was modified to add urgency, changing from 'Get Your Tickets' to 'Get Your Tickets NOWWWW' to encourage immediate registration.",
+  "script": "In this update, Desmond made two visual changes to the event website. First, the footer color was changed from pink to neon green for a more vibrant look. Second, the entire website font was updated from Geist to Montserrat to improve readability and give the site a more modern feel.",
   "changes": [
     {
-      "title": "Updated Event Location",
-      "description": "Changed location from San Francisco to Singapore, NUS",
+      "title": "Changed Footer Color",
+      "description": "Updated footer from pink to neon green",
       "page_url": "/",
-      "selector": ".font-medium",
-      "duration_seconds": 7
+      "selector": "footer",
+      "duration_seconds": 6
     },
     {
-      "title": "Modified CTA Button Text",
-      "description": "Added urgency with NOWWWW to ticket button",
+      "title": "Updated Website Font",
+      "description": "Changed from Geist to Montserrat font family",
       "page_url": "/",
-      "selector": ".bg-white.text-purple-600",
-      "duration_seconds": 6
+      "selector": "body",
+      "duration_seconds": 7
     }
   ],
-  "report_key": "PR_3_2026_01_17"
+  "report_key": "PR_5_2026_01_17"
 }
