@@ -153,6 +153,9 @@ export default function NewProjectPage() {
             </div>
             <span className="text-xl font-bold tracking-tight">TeamSync</span>
           </Link>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-muted-foreground">New Project</span>
+          </div>
         </div>
       </header>
 
