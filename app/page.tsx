@@ -328,6 +328,19 @@ function UserProfileDropdown() {
 export default function ProjectsDashboard() {
   const [searchQuery, setSearchQuery] = useState("")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const [userRole, setUserRole] = useState<"developer" | "reviewer" | null>(null)
+
+  useEffect(() => {
+    async function fetchUserRole() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const role = user.user_metadata?.role || "developer"
+        setUserRole(role === "reviewer" ? "reviewer" : "developer")
+      }
+    }
+    fetchUserRole()
+  }, [])
 
   const activeProjects = mockProjects.filter((p) => p.status === "active")
   const completedProjects = mockProjects.filter((p) => p.status === "completed")
@@ -356,6 +369,11 @@ export default function ProjectsDashboard() {
           </Link>
 
           <div className="flex items-center gap-3">
+            {userRole && (
+              <span className="text-sm font-medium text-muted-foreground capitalize">
+                {userRole}
+              </span>
+            )}
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-accent text-[10px] font-bold flex items-center justify-center text-accent-foreground">

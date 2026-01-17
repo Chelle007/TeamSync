@@ -140,6 +140,7 @@ export default function GeneratorWizard() {
             <span className="text-xl font-bold tracking-tight">TeamSync</span>
           </Link>
           <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-muted-foreground">Generate Update</span>
             <Button variant="outline" size="sm" asChild>
               <Link href={`/${projectId}`}>
                 View Reviewer Portal

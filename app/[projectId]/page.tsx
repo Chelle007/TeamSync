@@ -16,7 +16,6 @@ import {
   Zap, 
   Video, 
   MessageSquare, 
-  Settings,
   Bell,
   User,
   LogOut
@@ -155,9 +154,21 @@ export default function ReviewerPortal() {
   const params = useParams()
   const projectId = params.projectId as string
   const [activeTab, setActiveTab] = useState("updates")
+  const [userRole, setUserRole] = useState<"developer" | "reviewer" | null>(null)
   
-  // For demo: toggle between reviewer and developer view
-  const [isDeveloperView, setIsDeveloperView] = useState(false)
+  useEffect(() => {
+    async function fetchUserRole() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const role = user.user_metadata?.role || "reviewer"
+        setUserRole(role === "developer" ? "developer" : "reviewer")
+      }
+    }
+    fetchUserRole()
+  }, [])
+  
+  const isDeveloperView = userRole === "developer"
 
   return (
     <div className="min-h-screen bg-background">
@@ -172,16 +183,11 @@ export default function ReviewerPortal() {
           </Link>
           
           <div className="flex items-center gap-3">
-            {/* Demo toggle */}
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setIsDeveloperView(!isDeveloperView)}
-            >
-              <Settings className="h-4 w-4" />
-              {isDeveloperView ? "Reviewer View" : "Developer View"}
-            </Button>
-            
+            {userRole && (
+              <span className="text-sm font-medium text-muted-foreground capitalize">
+                {userRole}
+              </span>
+            )}
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-accent text-[10px] font-bold flex items-center justify-center text-accent-foreground">
