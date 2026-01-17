@@ -4,8 +4,9 @@ import { useState, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Zap, ArrowLeft, Loader2, Github } from "lucide-react"
+import { Zap, ArrowLeft, Loader2, Github, Chrome, Mail, Lock } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { toast } from "sonner"
 
@@ -13,7 +14,10 @@ function LoginForm() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [role, setRole] = useState<"developer" | "reviewer">("developer")
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState<"github" | "google" | "email" | null>(null)
+  const [isSignUp, setIsSignUp] = useState(false)
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
 
   useEffect(() => {
     const roleParam = searchParams.get("role")
@@ -23,7 +27,7 @@ function LoginForm() {
   }, [searchParams])
 
   const handleGitHubSignIn = async () => {
-    setIsLoading(true)
+    setIsLoading("github")
 
     try {
       const supabase = createClient()
@@ -39,7 +43,74 @@ function LoginForm() {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Authentication failed"
       toast.error(errorMessage)
-      setIsLoading(false)
+      setIsLoading(null)
+    }
+  }
+
+  const handleGoogleSignIn = async () => {
+    setIsLoading("google")
+
+    try {
+      const supabase = createClient()
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?role=${role}`,
+        },
+      })
+
+      if (error) throw error
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Authentication failed"
+      toast.error(errorMessage)
+      setIsLoading(null)
+    }
+  }
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading("email")
+
+    try {
+      const supabase = createClient()
+
+      if (isSignUp) {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              role: role,
+            },
+          },
+        })
+
+        if (error) throw error
+
+        toast.success("Check your email to confirm your account!")
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+
+        if (error) throw error
+
+        toast.success("Welcome back!")
+
+        // Redirect based on role
+        if (role === "developer") {
+          router.push("/dashboard")
+        } else {
+          router.push("/portal/demo-project")
+        }
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Authentication failed"
+      toast.error(errorMessage)
+    } finally {
+      setIsLoading(null)
     }
   }
 
@@ -107,7 +178,7 @@ function LoginForm() {
         {/* Auth Card */}
         <Card>
           <CardHeader className="text-center pb-4">
-            <CardTitle>Welcome to TeamSync</CardTitle>
+            <CardTitle>{isSignUp ? "Create account" : "Welcome back"}</CardTitle>
             <CardDescription>
               {role === "developer"
                 ? "Generate AI-powered updates for your reviewers"
@@ -115,50 +186,169 @@ function LoginForm() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* GitHub Sign In */}
-            <Button 
-              className="w-full" 
-              size="lg"
-              onClick={handleGitHubSignIn}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Connecting...
-                </>
-              ) : (
-                <>
-                  <Github className="h-5 w-5" />
-                  Continue with GitHub
-                </>
-              )}
-            </Button>
+            {role === "developer" ? (
+              // Developer: GitHub only
+              <>
+                <Button 
+                  className="w-full" 
+                  size="lg"
+                  onClick={handleGitHubSignIn}
+                  disabled={isLoading !== null}
+                >
+                  {isLoading === "github" ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <Github className="h-5 w-5" />
+                      Continue with GitHub
+                    </>
+                  )}
+                </Button>
 
-            <p className="text-center text-xs text-muted-foreground">
-              {role === "developer" 
-                ? "GitHub required for repository verification"
-                : "Sign in with your GitHub account"}
-            </p>
+                <p className="text-center text-xs text-muted-foreground">
+                  GitHub required for repository verification
+                </p>
 
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">Or</span>
-              </div>
-            </div>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">Or</span>
+                  </div>
+                </div>
 
-            {/* Demo button for hackathon */}
-            <Button 
-              variant="ghost" 
-              className="w-full" 
-              onClick={handleDemoLogin}
-              disabled={isLoading}
-            >
-              Continue with Demo Mode
-            </Button>
+                <Button 
+                  variant="ghost" 
+                  className="w-full" 
+                  onClick={handleDemoLogin}
+                  disabled={isLoading !== null}
+                >
+                  Continue with Demo Mode
+                </Button>
+              </>
+            ) : (
+              // Reviewer: Google + Email/Password
+              <>
+                {/* Google Sign In */}
+                <Button 
+                  variant="outline"
+                  className="w-full" 
+                  size="lg"
+                  onClick={handleGoogleSignIn}
+                  disabled={isLoading !== null}
+                >
+                  {isLoading === "google" ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <Chrome className="h-5 w-5" />
+                      Continue with Google
+                    </>
+                  )}
+                </Button>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">Or continue with email</span>
+                  </div>
+                </div>
+
+                {/* Email/Password Form */}
+                <form onSubmit={handleEmailAuth} className="space-y-3">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="email">
+                      Email
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="you@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10"
+                        required
+                        disabled={isLoading !== null}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="password">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10"
+                        required
+                        minLength={6}
+                        disabled={isLoading !== null}
+                      />
+                    </div>
+                  </div>
+
+                  <Button type="submit" className="w-full" disabled={isLoading !== null}>
+                    {isLoading === "email" ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Please wait...
+                      </>
+                    ) : isSignUp ? (
+                      "Create account"
+                    ) : (
+                      "Sign in"
+                    )}
+                  </Button>
+                </form>
+
+                <p className="text-center text-sm text-muted-foreground">
+                  {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
+                  <button
+                    type="button"
+                    onClick={() => setIsSignUp(!isSignUp)}
+                    className="text-primary hover:underline font-medium cursor-pointer"
+                    disabled={isLoading !== null}
+                  >
+                    {isSignUp ? "Sign in" : "Sign up"}
+                  </button>
+                </p>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">Or</span>
+                  </div>
+                </div>
+
+                <Button 
+                  variant="ghost" 
+                  className="w-full" 
+                  onClick={handleDemoLogin}
+                  disabled={isLoading !== null}
+                >
+                  Continue with Demo Mode
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
