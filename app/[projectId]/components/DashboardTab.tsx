@@ -6,6 +6,112 @@ import { Input } from "@/components/ui/input"
 import { FileText, Upload, GitBranch, ExternalLink, Calendar, Loader2, X, Check, Pencil, Trash2, FileCheck } from "lucide-react"
 import type { Project } from "@/types/database"
 import { toast } from "sonner"
+import { useMemo } from "react"
+
+// Component to render formatted project scope
+function ProjectScopeContent({ content }: { content: string }) {
+  const formattedContent = useMemo(() => {
+    // Clean up content - remove "# Project Scope Document" if it exists
+    let cleanedContent = content
+      .replace(/^#+\s*Project\s+Scope\s+Document\s*/i, '')
+      .replace(/^#+\s*Project\s+Scope\s*/i, '')
+      .trim()
+
+    // Split by markdown headers (##)
+    const sections = cleanedContent.split(/(?=##\s)/g).filter(Boolean)
+    
+    if (sections.length === 0) {
+      // If no markdown headers, just render as plain text with line breaks
+      return (
+        <div className="text-base text-foreground/90 leading-relaxed whitespace-pre-wrap">
+          {cleanedContent}
+        </div>
+      )
+    }
+
+    return (
+      <div className="space-y-8">
+        {sections.map((section, index) => {
+          const lines = section.trim().split('\n')
+          const header = lines[0]?.replace(/^##\s*/, '').trim()
+          const body = lines.slice(1).join('\n').trim()
+
+          // Check if body has bold sub-sections (like **Customization Options:**)
+          const hasBoldSubsections = body.includes('**') && body.includes(':**')
+
+          return (
+            <div key={index} className="space-y-4">
+              {header && (
+                <div className="space-y-1">
+                  <h4 className="text-lg font-semibold text-foreground">
+                    {header}
+                  </h4>
+                  <div className="h-px bg-gradient-to-r from-primary/20 via-primary/10 to-transparent" />
+                </div>
+              )}
+              <div className="text-base text-foreground/80 leading-relaxed space-y-3">
+                {body.split('\n').map((line, lineIndex) => {
+                  const trimmedLine = line.trim()
+                  
+                  // Skip empty lines
+                  if (!trimmedLine) {
+                    return null
+                  }
+                  
+                  // Handle bold sub-sections (like **Customization Options:**)
+                  if (trimmedLine.startsWith('**') && trimmedLine.endsWith(':**')) {
+                    const subHeader = trimmedLine.replace(/^\*\*|\*\*:$/g, '').replace(/:$/, '')
+                    return (
+                      <div key={lineIndex} className="pt-2">
+                        <h5 className="text-sm font-semibold text-foreground mb-2">
+                          {subHeader}
+                        </h5>
+                      </div>
+                    )
+                  }
+                  
+                  // Handle bullet points
+                  if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ') || trimmedLine.startsWith('• ')) {
+                    const bulletText = trimmedLine.replace(/^[-*•]\s+/, '')
+                    return (
+                      <div key={lineIndex} className="flex items-start gap-3 pl-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
+                        <span className="flex-1 text-foreground/75">{bulletText}</span>
+                      </div>
+                    )
+                  }
+                  
+                  // Handle numbered lists
+                  if (/^\d+\.\s/.test(trimmedLine)) {
+                    const number = trimmedLine.match(/^\d+/)?.[0]
+                    const listText = trimmedLine.replace(/^\d+\.\s+/, '')
+                    return (
+                      <div key={lineIndex} className="flex items-start gap-3 pl-1">
+                        <span className="text-primary font-semibold mt-0.5 min-w-[1.75rem] text-sm">
+                          {number}.
+                        </span>
+                        <span className="flex-1 text-foreground/75">{listText}</span>
+                      </div>
+                    )
+                  }
+                  
+                  // Regular paragraph
+                  return (
+                    <p key={lineIndex} className="text-foreground/80 leading-relaxed">
+                      {trimmedLine}
+                    </p>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }, [content])
+
+  return formattedContent
+}
 
 interface DashboardTabProps {
   project: Project | null
@@ -132,32 +238,36 @@ export function DashboardTab({
       <div className="grid gap-6">
         {/* Project Scope */}
         {projectDetails.projectScope && (
-          <Card className="shadow-md hover:shadow-lg transition-shadow duration-300">
-            <CardContent className="p-6 lg:p-8 space-y-4">
+          <Card className="shadow-md">
+            <CardContent className="p-6 lg:p-8 space-y-6">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                   <FileCheck className="h-5 w-5 text-primary" />
                 </div>
-                <h3 className="text-xl font-bold">Project Scope</h3>
-              </div>
-              <div className="prose prose-sm max-w-none">
-                <div className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                  {projectDetails.projectScope}
+                <div>
+                  <h3 className="text-2xl font-bold">Project Scope</h3>
+                  <p className="text-sm text-muted-foreground mt-0.5">Project requirements and specifications</p>
                 </div>
+              </div>
+              <div>
+                <ProjectScopeContent content={projectDetails.projectScope} />
               </div>
             </CardContent>
           </Card>
         )}
 
         {/* Project Files */}
-        <Card className="shadow-md hover:shadow-lg transition-shadow duration-300">
+        <Card className="shadow-md">
           <CardContent className="p-6 lg:p-8 space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                   <FileText className="h-5 w-5 text-primary" />
                 </div>
-                <h3 className="text-xl font-bold">Project Files</h3>
+                <div>
+                  <h3 className="text-2xl font-bold">Project Files</h3>
+                  <p className="text-sm text-muted-foreground mt-0.5">Upload and manage project documents</p>
+                </div>
               </div>
               {isDeveloperView && (
                 <div className="flex items-center gap-3">
