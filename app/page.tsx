@@ -154,7 +154,7 @@ function ProjectCard({ project }: { project: Project }) {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <Link 
-              href={`/portal/${project.id}`}
+              href={`/${project.id}`}
               className="font-semibold text-sm hover:text-primary transition-colors line-clamp-1"
             >
               {project.name}
@@ -211,7 +211,7 @@ function ProjectCard({ project }: { project: Project }) {
         {/* Quick Actions */}
         <div className="flex gap-2 pt-1">
           <Button variant="outline" size="sm" className="flex-1 text-xs h-8" asChild>
-            <Link href={`/portal/${project.id}`}>
+            <Link href={`/${project.id}`}>
               View Portal
               <ExternalLink className="h-3 w-3" />
             </Link>
