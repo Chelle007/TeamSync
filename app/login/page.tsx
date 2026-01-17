@@ -80,7 +80,7 @@ function LoginForm() {
 
         // Redirect based on role
         if (role === "freelancer") {
-          router.push("/dashboard/generate")
+          router.push("/dashboard")
         } else {
           router.push("/portal/demo-project")
         }
@@ -97,7 +97,7 @@ function LoginForm() {
     // For hackathon demo - bypass auth
     toast.success("Demo mode activated!")
     if (role === "freelancer") {
-      router.push("/dashboard/generate")
+      router.push("/dashboard")
     } else {
       router.push("/portal/demo-project")
     }
