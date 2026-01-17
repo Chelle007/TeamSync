@@ -1,20 +1,25 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { UpdateCard } from "@/components/update-card"
 import { ChatInterface } from "@/components/chat-interface"
+import { createClient } from "@/utils/supabase/client"
+import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 import { 
   Zap, 
   Video, 
   MessageSquare, 
   Settings,
   Bell,
-  User
+  User,
+  LogOut
 } from "lucide-react"
 
 // Mock data for demo
@@ -47,6 +52,104 @@ const mockUpdates = [
     status: "processing" as const,
   },
 ]
+
+// User Profile Dropdown Component
+function UserProfileDropdown() {
+  const [isOpen, setIsOpen] = useState(false)
+  const [user, setUser] = useState<{ email?: string; name?: string } | null>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
+
+  useEffect(() => {
+    async function fetchUser() {
+      const supabase = createClient()
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      if (authUser) {
+        setUser({
+          email: authUser.email,
+          name: authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email?.split("@")[0] || "User"
+        })
+      }
+    }
+    fetchUser()
+  }, [])
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [isOpen])
+
+  const handleSignOut = async () => {
+    const supabase = createClient()
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      toast.error("Failed to sign out")
+    } else {
+      toast.success("Signed out successfully")
+      router.push("/login")
+    }
+  }
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <Button 
+        variant="ghost" 
+        size="icon"
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          "transition-colors",
+          isOpen && "bg-muted"
+        )}
+      >
+        <User className="h-5 w-5" />
+      </Button>
+
+      {isOpen && (
+        <Card className="absolute right-0 top-12 w-64 shadow-lg border z-50 animate-slide-up">
+          <CardContent className="p-4 space-y-4">
+            {/* User Info */}
+            <div className="space-y-1 pb-3 border-b">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <User className="h-5 w-5 text-primary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-sm truncate">
+                    {user?.name || "User"}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {user?.email || ""}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Logout Button */}
+            <Button 
+              variant="outline" 
+              className="w-full justify-start"
+              onClick={handleSignOut}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}
 
 export default function ReviewerPortal() {
   const params = useParams()
@@ -86,9 +189,7 @@ export default function ReviewerPortal() {
               </span>
             </Button>
             
-            <Button variant="ghost" size="icon">
-              <User className="h-5 w-5" />
-            </Button>
+            <UserProfileDropdown />
           </div>
         </div>
       </header>
