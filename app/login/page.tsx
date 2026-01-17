@@ -103,7 +103,7 @@ function LoginForm() {
         if (role === "developer") {
           router.push("/")
         } else {
-          router.push("/portal/demo-project")
+          router.push("/demo-project")
         }
       }
     } catch (error: unknown) {
@@ -120,7 +120,7 @@ function LoginForm() {
     if (role === "developer") {
       router.push("/")
     } else {
-      router.push("/portal/demo-project")
+      router.push("/demo-project")
     }
   }
 

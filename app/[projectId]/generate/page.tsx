@@ -141,7 +141,7 @@ export default function GeneratorWizard() {
           </Link>
           <div className="flex items-center gap-3">
             <Button variant="outline" size="sm" asChild>
-              <Link href={`/portal/${projectId}`}>
+              <Link href={`/${projectId}`}>
                 View Reviewer Portal
                 <ExternalLink className="h-3 w-3" />
               </Link>
@@ -464,7 +464,7 @@ export default function GeneratorWizard() {
                 </div>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                   <Button asChild>
-                    <Link href={`/portal/${projectId}`}>
+                    <Link href={`/${projectId}`}>
                       View in Portal
                       <ExternalLink className="h-4 w-4" />
                     </Link>
