@@ -99,12 +99,39 @@ export async function POST(request) {
     const combineData = await combineResponse.json();
     console.log('✅ Final video created:', combineData.finalVideoPath);
 
-    // Step 5: Return complete result
+    // Step 5: Generate Google Doc with screenshots and captions
+    console.log('📄 Step 5: Generating Google Doc...');
+    let googleDocData = null;
+    try {
+      const googleDocResponse = await fetch(`${baseUrl}/api/generate-google-doc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reportKey: reportKey,
+          projectName: projectId,
+          script: summaryData.script,
+          changes: summaryData.changes,
+        }),
+      });
+
+      if (googleDocResponse.ok) {
+        googleDocData = await googleDocResponse.json();
+        console.log('✅ Google Doc generated:', googleDocData.documentUrl);
+      } else {
+        const errorText = await googleDocResponse.text();
+        console.warn('⚠️ Google Doc generation failed (non-critical):', errorText);
+      }
+    } catch (docError) {
+      console.warn('⚠️ Google Doc generation failed (non-critical):', docError.message);
+    }
+
+    // Step 6: Return complete result
     const result = {
       success: true,
       projectId,
       reportKey,
       finalVideoUrl: combineData.finalVideoPath,
+      googleDocUrl: googleDocData?.documentUrl || null,
       summary: {
         script: summaryData.script,
         changes: summaryData.changes,
@@ -113,6 +140,7 @@ export async function POST(request) {
         audioPath: ttsData.audioPath,
         videoPath: recordData.videoPath,
         finalVideoPath: combineData.finalVideoPath,
+        googleDocId: googleDocData?.documentId || null,
       },
       durations: {
         videoDuration: combineData.videoDuration,
@@ -121,7 +149,7 @@ export async function POST(request) {
       generatedAt: new Date().toISOString(),
     };
 
-    console.log('🎉 Full video generation completed successfully!');
+    console.log('🎉 Full video + Google Doc generation completed successfully!');
     return new Response(JSON.stringify(result), { status: 200 });
 
   } catch (error) {
