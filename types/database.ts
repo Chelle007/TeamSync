@@ -1,16 +1,34 @@
 // Database types for Supabase tables
-// These match the assumed schema: projects, updates, messages
+// Updated to match the new schema with project_user junction table
+
+export interface UserProfile {
+  id: string
+  created_at: string
+  email?: string
+  role: "developer" | "reviewer"
+  full_name?: string
+  avatar_url?: string
+  github_access_token?: string
+}
 
 export interface Project {
   id: string
   created_at: string
   updated_at: string
   name: string
-  description?: string
-  developer_id: string // References auth.users
-  project_url?: string
-  github_repo?: string
+  github_url?: string
+  live_url?: string
+  summary?: string
   status: "active" | "paused" | "completed"
+  progress: number // 0-100
+}
+
+export interface ProjectUser {
+  id: string
+  created_at: string
+  project_id: string // References projects
+  user_id: string // References auth.users
+  is_owner: boolean
 }
 
 export interface Update {
@@ -21,11 +39,10 @@ export interface Update {
   video_url?: string
   doc_url?: string
   summary: string
-  notes?: string
   status: "pending" | "processing" | "completed" | "failed"
 }
 
-export interface Message {
+export interface ChatbotMessage {
   id: string
   created_at: string
   project_id: string // References projects
@@ -34,42 +51,38 @@ export interface Message {
   content: string
   status?: "pending" | "approved" | "flagged"
   flagged_reason?: string
-  approved_by?: string // References auth.users (developer who approved)
+  approved_by?: string // References auth.users (owner who approved)
   approved_at?: string
-}
-
-export interface UserProfile {
-  id: string
-  created_at: string
-  email: string
-  full_name?: string
-  avatar_url?: string
-  github_access_token?: string // For GitHub API calls
 }
 
 // Database response types
 export type Database = {
   public: {
     Tables: {
+      profiles: {
+        Row: UserProfile
+        Insert: Omit<UserProfile, "id" | "created_at">
+        Update: Partial<Omit<UserProfile, "id" | "created_at">>
+      }
       projects: {
         Row: Project
         Insert: Omit<Project, "id" | "created_at" | "updated_at">
         Update: Partial<Omit<Project, "id" | "created_at">>
+      }
+      project_user: {
+        Row: ProjectUser
+        Insert: Omit<ProjectUser, "id" | "created_at">
+        Update: Partial<Omit<ProjectUser, "id" | "created_at">>
       }
       updates: {
         Row: Update
         Insert: Omit<Update, "id" | "created_at">
         Update: Partial<Omit<Update, "id" | "created_at">>
       }
-      messages: {
-        Row: Message
-        Insert: Omit<Message, "id" | "created_at">
-        Update: Partial<Omit<Message, "id" | "created_at">>
-      }
-      profiles: {
-        Row: UserProfile
-        Insert: Omit<UserProfile, "id" | "created_at">
-        Update: Partial<Omit<UserProfile, "id" | "created_at">>
+      chatbot_messages: {
+        Row: ChatbotMessage
+        Insert: Omit<ChatbotMessage, "id" | "created_at">
+        Update: Partial<Omit<ChatbotMessage, "id" | "created_at">>
       }
     }
   }

@@ -26,72 +26,15 @@ import {
   Bell,
   GitBranch,
   LogOut,
+  Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-// Mock data for projects
-const mockProjects = [
-  {
-    id: "batam-spa",
-    name: "Batam1SPA Website",
-    description: "Wellness and spa booking platform",
-    githubRepo: "batam/spa-website",
-    thumbnail: null,
-    progress: 95,
-    status: "active" as const,
-    updatesCount: 8,
-    lastUpdate: "Jan 15, 2026",
-    createdAt: "Nov 1, 2024",
-  },
-  {
-    id: "krit-design",
-    name: "Krit Design Club",
-    description: "Design agency portfolio site",
-    githubRepo: "krit/design-club",
-    thumbnail: null,
-    progress: 70,
-    status: "active" as const,
-    updatesCount: 5,
-    lastUpdate: "Jan 12, 2026",
-    createdAt: "Dec 10, 2024",
-  },
-  {
-    id: "demo-project",
-    name: "E-commerce Platform",
-    description: "Full-stack e-commerce solution",
-    githubRepo: "techstart/ecommerce",
-    thumbnail: null,
-    progress: 45,
-    status: "active" as const,
-    updatesCount: 3,
-    lastUpdate: "Jan 10, 2026",
-    createdAt: "Jan 1, 2025",
-  },
-  {
-    id: "fitness-app",
-    name: "FitTrack Mobile App",
-    description: "Fitness tracking and workout app",
-    githubRepo: "fitlife/fittrack-app",
-    thumbnail: null,
-    progress: 100,
-    status: "completed" as const,
-    updatesCount: 12,
-    lastUpdate: "Dec 20, 2024",
-    createdAt: "Aug 15, 2024",
-  },
-  {
-    id: "restaurant-site",
-    name: "Sakura Restaurant",
-    description: "Japanese restaurant website",
-    githubRepo: "sakura/website",
-    thumbnail: null,
-    progress: 100,
-    status: "completed" as const,
-    updatesCount: 6,
-    lastUpdate: "Nov 30, 2024",
-    createdAt: "Sep 1, 2024",
-  },
-]
+// Helper function to format date
+function formatDate(dateString: string): string {
+  const date = new Date(dateString)
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+}
 
 type ProjectStatus = "active" | "completed" | "paused"
 
@@ -165,7 +108,7 @@ function ProjectCard({ project }: { project: Project }) {
                 {project.githubRepo}
               </p>
             ) : project.description ? (
-              <p className="text-xs text-muted-foreground truncate">{project.description}</p>
+              <p className="text-xs text-muted-foreground line-clamp-2">{project.description}</p>
             ) : null}
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
@@ -328,9 +271,106 @@ function UserProfileDropdown() {
 export default function ProjectsDashboard() {
   const [searchQuery, setSearchQuery] = useState("")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const [projects, setProjects] = useState<Project[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter()
 
-  const activeProjects = mockProjects.filter((p) => p.status === "active")
-  const completedProjects = mockProjects.filter((p) => p.status === "completed")
+  // Fetch projects from Supabase
+  useEffect(() => {
+    async function fetchProjects() {
+      try {
+        const supabase = createClient()
+        
+        // Get current user
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push("/login")
+          return
+        }
+
+        // Fetch projects for this user (via project_user junction table)
+        // First get project IDs the user has access to
+        const { data: userProjects, error: userProjectsError } = await supabase
+          .from("project_user")
+          .select("project_id")
+          .eq("user_id", user.id)
+
+        if (userProjectsError) {
+          console.error("Error fetching user projects:", userProjectsError)
+          toast.error("Failed to load projects")
+          return
+        }
+
+        if (!userProjects || userProjects.length === 0) {
+          setProjects([])
+          setIsLoading(false)
+          return
+        }
+
+        const projectIds = userProjects.map(up => up.project_id)
+
+        // Then fetch the actual projects
+        const { data: projectsData, error } = await supabase
+          .from("projects")
+          .select("*")
+          .in("id", projectIds)
+          .order("created_at", { ascending: false })
+
+        if (error) {
+          console.error("Error fetching projects:", error)
+          toast.error("Failed to load projects")
+          return
+        }
+
+        // Fetch update counts and latest update for each project
+        const projectsWithCounts = await Promise.all(
+          (projectsData || []).map(async (project) => {
+            // Get update count
+            const { count } = await supabase
+              .from("updates")
+              .select("*", { count: "exact", head: true })
+              .eq("project_id", project.id)
+
+            // Get latest update date
+            const { data: latestUpdate } = await supabase
+              .from("updates")
+              .select("created_at")
+              .eq("project_id", project.id)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle()
+
+            return {
+              id: project.id,
+              name: project.name,
+              description: project.summary || undefined, // Use summary instead of description
+              githubRepo: project.github_url || undefined, // Use github_url instead of github_repo
+              thumbnail: null, // Can be added later
+              progress: project.progress || 0, // Use progress from database
+              status: project.status,
+              updatesCount: count || 0,
+              lastUpdate: latestUpdate?.created_at 
+                ? formatDate(latestUpdate.created_at) 
+                : formatDate(project.created_at),
+              createdAt: formatDate(project.created_at),
+            }
+          })
+        )
+
+        setProjects(projectsWithCounts)
+      } catch (error) {
+        console.error("Error:", error)
+        toast.error("Failed to load projects")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchProjects()
+  }, [])
+
+  const activeProjects = projects.filter((p) => p.status === "active")
+  const completedProjects = projects.filter((p) => p.status === "completed")
 
   const filterProjects = (projects: Project[]) => {
     if (!searchQuery) return projects
@@ -388,7 +428,7 @@ export default function ProjectsDashboard() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {[
             { label: "Active Projects", value: activeProjects.length, icon: FolderOpen, color: "text-emerald-500" },
-            { label: "Total Updates", value: mockProjects.reduce((acc, p) => acc + p.updatesCount, 0), icon: Video, color: "text-blue-500" },
+            { label: "Total Updates", value: projects.reduce((acc, p) => acc + p.updatesCount, 0), icon: Video, color: "text-blue-500" },
             { label: "Completed", value: completedProjects.length, icon: TrendingUp, color: "text-violet-500" },
             { label: "This Month", value: 12, icon: Calendar, color: "text-amber-500" },
           ].map((stat) => (
@@ -458,7 +498,12 @@ export default function ProjectsDashboard() {
           </TabsList>
 
           <TabsContent value="active">
-            {filterProjects(activeProjects).length > 0 ? (
+            {isLoading ? (
+              <div className="text-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading projects...</p>
+              </div>
+            ) : filterProjects(activeProjects).length > 0 ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filterProjects(activeProjects).map((project) => (
                   <ProjectCard key={project.id} project={project} />
@@ -470,7 +515,12 @@ export default function ProjectsDashboard() {
           </TabsContent>
 
           <TabsContent value="completed">
-            {filterProjects(completedProjects).length > 0 ? (
+            {isLoading ? (
+              <div className="text-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading projects...</p>
+              </div>
+            ) : filterProjects(completedProjects).length > 0 ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filterProjects(completedProjects).map((project) => (
                   <ProjectCard key={project.id} project={project} />
@@ -482,9 +532,14 @@ export default function ProjectsDashboard() {
           </TabsContent>
 
           <TabsContent value="all">
-            {filterProjects(mockProjects).length > 0 ? (
+            {isLoading ? (
+              <div className="text-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading projects...</p>
+              </div>
+            ) : filterProjects(projects).length > 0 ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filterProjects(mockProjects).map((project) => (
+                {filterProjects(projects).map((project) => (
                   <ProjectCard key={project.id} project={project} />
                 ))}
               </div>
