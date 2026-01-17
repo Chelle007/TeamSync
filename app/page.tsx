@@ -546,22 +546,21 @@ export default function ProjectsDashboard() {
             </p>
           </div>
           {userRole === "developer" && (
-            <Button asChild>
-              <Link href="/new">
-                <Plus className="h-4 w-4" />
-                New Project
+            <Button asChild className="whitespace-nowrap">
+              <Link href="/new" className="flex items-center gap-2">
+                <Plus className="h-4 w-4 shrink-0" />
+                <span>New Project</span>
               </Link>
             </Button>
           )}
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
           {[
             { label: "Active Projects", value: activeProjects.length, icon: FolderOpen, color: "text-emerald-500" },
             { label: "Total Updates", value: projects.reduce((acc, p) => acc + p.updatesCount, 0), icon: Video, color: "text-blue-500" },
             { label: "Completed", value: completedProjects.length, icon: TrendingUp, color: "text-violet-500" },
-            { label: "This Month", value: 12, icon: Calendar, color: "text-amber-500" },
           ].map((stat) => (
             <Card key={stat.label} className="p-4">
               <div className="flex items-center gap-3">
@@ -608,7 +607,8 @@ export default function ProjectsDashboard() {
 
         {/* Tabs */}
         <Tabs defaultValue="active" className="space-y-6">
-          <TabsList>
+          <div className="flex justify-center">
+            <TabsList>
             <TabsTrigger value="active" className="gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
               Active
@@ -626,7 +626,8 @@ export default function ProjectsDashboard() {
             <TabsTrigger value="all" className="gap-2">
               All Projects
             </TabsTrigger>
-          </TabsList>
+            </TabsList>
+          </div>
 
           <TabsContent value="active">
             {isLoading ? (
@@ -711,10 +712,10 @@ function EmptyState({ type }: { type: "active" | "completed" | "all" }) {
           : "No projects match your search."}
       </p>
       {type === "active" && (
-        <Button asChild>
-          <Link href="/new">
-            <Plus className="h-4 w-4" />
-            Create Project
+        <Button asChild className="whitespace-nowrap">
+          <Link href="/new" className="flex items-center gap-2">
+            <Plus className="h-4 w-4 shrink-0" />
+            <span>Create Project</span>
           </Link>
         </Button>
       )}

@@ -3,9 +3,153 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { FileText, Upload, GitBranch, ExternalLink, Calendar, Loader2, X, Check, Pencil, Trash2 } from "lucide-react"
+import { FileText, Upload, GitBranch, ExternalLink, Calendar, Loader2, X, Check, Pencil, Trash2, FileCheck } from "lucide-react"
 import type { Project } from "@/types/database"
 import { toast } from "sonner"
+import { useMemo, ReactElement } from "react"
+
+// Helper function to parse and render markdown bold text
+function parseBoldText(text: string) {
+  const parts: Array<string | ReactElement> = []
+  let lastIndex = 0
+  const boldRegex = /\*\*([^*]+)\*\*/g
+  let match
+
+  while ((match = boldRegex.exec(text)) !== null) {
+    // Add text before the bold
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index))
+    }
+    // Add the bold text
+    parts.push(
+      <strong key={match.index} className="font-semibold text-foreground">
+        {match[1]}
+      </strong>
+    )
+    lastIndex = match.index + match[0].length
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex))
+  }
+
+  return parts.length > 0 ? parts : [text]
+}
+
+// Component to render formatted project scope
+function ProjectScopeContent({ content }: { content: string }) {
+  const formattedContent = useMemo(() => {
+    // Clean up content - remove "# Project Scope Document" if it exists
+    let cleanedContent = content
+      .replace(/^#+\s*Project\s+Scope\s+Document\s*/i, '')
+      .replace(/^#+\s*Project\s+Scope\s*/i, '')
+      .trim()
+
+    // Split by markdown headers (##)
+    const sections = cleanedContent.split(/(?=##\s)/g).filter(Boolean)
+    
+    if (sections.length === 0) {
+      // If no markdown headers, just render as plain text with line breaks
+      return (
+        <div className="text-base text-foreground/90 leading-relaxed whitespace-pre-wrap">
+          {cleanedContent}
+        </div>
+      )
+    }
+
+    return (
+      <div className="space-y-8">
+        {sections.map((section, index) => {
+          const lines = section.trim().split('\n')
+          const header = lines[0]?.replace(/^##\s*/, '').trim()
+          const body = lines.slice(1).join('\n').trim()
+
+          // Process body to group content under bold sub-sections
+          const processedLines: Array<{ type: 'subheader' | 'bullet' | 'paragraph' | 'empty', content: string, indent: number }> = []
+          let currentIndent = 0
+          
+          body.split('\n').forEach((line) => {
+            const trimmedLine = line.trim()
+            
+            if (!trimmedLine) {
+              processedLines.push({ type: 'empty', content: '', indent: 0 })
+              return
+            }
+            
+            // Check if it's a bold sub-section header (like **Customization Options:**)
+            if (trimmedLine.match(/^\*\*.*\*\*:?\s*$/)) {
+              currentIndent = 0
+              processedLines.push({ type: 'subheader', content: trimmedLine, indent: 0 })
+            }
+            // Check if it's a bullet point
+            else if (trimmedLine.match(/^[-*•]\s/)) {
+              // Check if it's nested (starts with spaces before bullet)
+              const indentLevel = (line.match(/^(\s*)/)?.[1]?.length || 0) / 2
+              processedLines.push({ type: 'bullet', content: trimmedLine, indent: indentLevel })
+            }
+            // Regular paragraph
+            else {
+              processedLines.push({ type: 'paragraph', content: trimmedLine, indent: 0 })
+            }
+          })
+
+          return (
+            <div key={index} className="space-y-5">
+              {header && (
+                <div className="space-y-2">
+                  <h4 className="text-lg font-semibold text-foreground">
+                    {header}
+                  </h4>
+                  <div className="h-px bg-gradient-to-r from-primary/20 via-primary/10 to-transparent" />
+                </div>
+              )}
+              <div className="text-base text-foreground/80 leading-relaxed">
+                {processedLines.map((item, lineIndex) => {
+                  if (item.type === 'empty') {
+                    return <div key={lineIndex} className="h-2" />
+                  }
+                  
+                  if (item.type === 'subheader') {
+                    const subHeader = item.content.replace(/^\*\*|\*\*:?\s*$/g, '').replace(/:$/, '')
+                    return (
+                      <div key={lineIndex} className="mt-4 mb-3 first:mt-0">
+                        <h5 className="text-base font-semibold text-foreground">
+                          {subHeader}
+                        </h5>
+                      </div>
+                    )
+                  }
+                  
+                  if (item.type === 'bullet') {
+                    const bulletText = item.content.replace(/^[-*•]\s+/, '')
+                    return (
+                      <div key={lineIndex} className={`flex items-start gap-3 ${item.indent > 0 ? 'ml-6' : 'ml-1'} mb-2`}>
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2.5 flex-shrink-0" />
+                        <div className="flex-1 text-foreground/75">
+                          {parseBoldText(bulletText)}
+                        </div>
+                      </div>
+                    )
+                  }
+                  
+                  // Regular paragraph
+                  return (
+                    <p key={lineIndex} className="text-foreground/80 leading-relaxed mb-3">
+                      {parseBoldText(item.content)}
+                    </p>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }, [content])
+
+  return formattedContent
+}
 
 interface DashboardTabProps {
   project: Project | null
@@ -15,6 +159,7 @@ interface DashboardTabProps {
     progress: number
     status: "active" | "completed" | "paused"
     timeline: string
+    projectScope: string | null
   }
   updates: Array<{ id: string }>
   documents: Array<{ name: string; size: number; created_at: string; url: string }>
@@ -129,15 +274,38 @@ export function DashboardTab({
 
       {/* Content Grid */}
       <div className="grid gap-6">
+        {/* Project Scope */}
+        {projectDetails.projectScope && (
+          <Card className="shadow-md">
+            <CardContent className="p-6 lg:p-8 space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <FileCheck className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold">Project Scope</h3>
+                  <p className="text-sm text-muted-foreground mt-0.5">Project requirements and specifications</p>
+                </div>
+              </div>
+              <div>
+                <ProjectScopeContent content={projectDetails.projectScope} />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Project Files */}
-        <Card className="shadow-md hover:shadow-lg transition-shadow duration-300">
+        <Card className="shadow-md">
           <CardContent className="p-6 lg:p-8 space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                   <FileText className="h-5 w-5 text-primary" />
                 </div>
-                <h3 className="text-xl font-bold">Project Files</h3>
+                <div>
+                  <h3 className="text-2xl font-bold">Project Files</h3>
+                  <p className="text-sm text-muted-foreground mt-0.5">Upload and manage project documents</p>
+                </div>
               </div>
               {isDeveloperView && (
                 <div className="flex items-center gap-3">

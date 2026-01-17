@@ -525,6 +525,7 @@ export default function ReviewerPortal() {
     progress: project.progress || 0,
     status: project.status,
     overview: project.summary || "This project is still being set up. Share goals, timeline, and requirements here.",
+    projectScope: project.project_scope || null,
     timeline: project.created_at 
       ? `${formatDate(project.created_at)} → ${project.updated_at ? formatDate(project.updated_at) : "Ongoing"}`
       : "Timeline pending",
@@ -535,6 +536,7 @@ export default function ReviewerPortal() {
     progress: 0,
     status: "active" as const,
     overview: "Loading...",
+    projectScope: null,
     timeline: "Loading...",
     nextMilestone: "Loading...",
   }

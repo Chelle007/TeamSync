@@ -272,12 +272,13 @@ export default function NewProjectPage() {
         return
       }
 
-      // Generate summary using OpenAI
+      // Generate summary and project scope using OpenAI
       let summary = ''
+      let projectScope = ''
       let pdfPath: string | null = null
 
       if (scopeInputType === 'pdf' && pdfFile) {
-        // Upload PDF and get summary
+        // Upload PDF and get summary + project scope
         const summarizeFormData = new FormData()
         summarizeFormData.append('pdfFile', pdfFile)
 
@@ -293,9 +294,10 @@ export default function NewProjectPage() {
 
         const summarizeData = await summarizeResponse.json()
         summary = summarizeData.summary
+        projectScope = summarizeData.project_scope || ''
         pdfPath = summarizeData.pdfPath
       } else if (formData.projectScope.trim()) {
-        // Get summary from text
+        // Get summary and project scope from text
         const summarizeFormData = new FormData()
         summarizeFormData.append('projectScope', formData.projectScope.trim())
 
@@ -311,6 +313,7 @@ export default function NewProjectPage() {
 
         const summarizeData = await summarizeResponse.json()
         summary = summarizeData.summary
+        projectScope = summarizeData.project_scope || formData.projectScope.trim()
       }
 
       setIsSummarizing(false)
@@ -322,6 +325,7 @@ export default function NewProjectPage() {
           p_github_url: formData.githubRepo.trim() || null,
           p_live_url: formData.projectUrl.trim() || null,
           p_summary: summary || null,
+          p_project_scope: projectScope || null,
           p_status: 'active',
           p_progress: 0,
         })
@@ -342,8 +346,8 @@ export default function NewProjectPage() {
 
       toast.success("Project created successfully!")
       
-      // Redirect to generate page using the project ID from Supabase
-      router.push(`/${project.id}/generate`)
+      // Redirect to project page
+      router.push(`/${project.id}`)
     } catch (error) {
       console.error("Error:", error)
       toast.error(error instanceof Error ? error.message : "Failed to create project. Please try again.")

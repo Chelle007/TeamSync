@@ -19,6 +19,7 @@ export interface Project {
   github_url?: string
   live_url?: string
   summary?: string
+  project_scope?: string
   status: "active" | "paused" | "completed"
   progress: number // 0-100
 }
