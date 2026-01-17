@@ -1,0 +1,27 @@
+{
+  "script": "In this update, the team made three key changes to the web portal. First, they updated the navigation bar styling to improve visibility. The z-index was increased from 10 to 50 to prevent overlapping issues on mobile screens. Second, they refactored the button component to use consistent padding across all breakpoints. Finally, they added new documentation comments to help future developers understand the component structure.",
+  "changes": [
+    {
+      "title": "Updated Navbar Styling",
+      "description": "Increased z-index to fix mobile overlap",
+      "page_url": "/",
+      "selector": "nav",
+      "duration_seconds": 8
+    },
+    {
+      "title": "Refactored Button Component",
+      "description": "Consistent padding across breakpoints",
+      "page_url": "/",
+      "selector": ".button",
+      "duration_seconds": 6
+    },
+    {
+      "title": "Added Documentation",
+      "description": "Component structure comments",
+      "page_url": "/",
+      "selector": "main",
+      "duration_seconds": 5
+    }
+  ],
+  "report_key": "PR_105_2026_01_17"
+}
