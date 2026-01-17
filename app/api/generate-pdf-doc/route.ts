@@ -1,6 +1,7 @@
 import puppeteer from 'puppeteer';
 import fs from 'fs';
 import path from 'path';
+import { uploadPdf, deleteLocalFile } from '@/lib/storage';
 
 interface Change {
   title: string;
@@ -275,12 +276,31 @@ export async function POST(request: Request) {
     await browser.close();
     browser = null;
 
-    console.log('✅ PDF generated:', docUrl);
+    console.log('✅ PDF generated locally:', pdfPath);
+
+    // Upload to Supabase Storage
+    console.log('☁️ Uploading PDF to Supabase...');
+    const pdfUrl = await uploadPdf(pdfPath, reportKey);
+
+    if (pdfUrl) {
+      console.log('✅ PDF uploaded to Supabase:', pdfUrl);
+      // Clean up local files after successful upload
+      deleteLocalFile(pdfPath);
+      
+      // Also clean up screenshots folder
+      const screenshotsDir = path.join(process.cwd(), 'public', 'screenshots', reportKey);
+      if (fs.existsSync(screenshotsDir)) {
+        fs.rmSync(screenshotsDir, { recursive: true, force: true });
+        console.log('🗑️ Deleted screenshots directory:', screenshotsDir);
+      }
+    } else {
+      console.warn('⚠️ Supabase upload failed, keeping local file');
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        documentUrl: docUrl,
+        documentUrl: pdfUrl || docUrl, // Supabase URL or fallback to local
         documentPath: pdfPath,
         title: `${projectName || 'Project'} Update Report - ${reportKey}`,
       }),
