@@ -54,7 +54,13 @@ interface Project {
   createdAt: string
 }
 
-function ProjectCard({ project }: { project: Project }) {
+function ProjectCard({
+  project,
+  canGenerate,
+}: {
+  project: Project
+  canGenerate: boolean
+}) {
   const statusColors = {
     active: "bg-emerald-500",
     completed: "bg-blue-500",
@@ -85,14 +91,16 @@ function ProjectCard({ project }: { project: Project }) {
           </div>
         )}
         {/* Hover overlay */}
-        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-          <Button size="sm" variant="secondary" asChild>
-            <Link href={`/${project.id}/generate`}>
-              <Video className="h-4 w-4" />
-              Generate Update
-            </Link>
-          </Button>
-        </div>
+        {canGenerate && (
+          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+            <Button size="sm" variant="secondary" asChild>
+              <Link href={`/${project.id}/generate`}>
+                <Video className="h-4 w-4" />
+                Generate Update
+              </Link>
+            </Button>
+          </div>
+        )}
       </div>
 
       <CardContent className="p-4 space-y-3">
@@ -162,11 +170,13 @@ function ProjectCard({ project }: { project: Project }) {
               <ExternalLink className="h-3 w-3" />
             </Link>
           </Button>
-          <Button size="sm" className="flex-1 text-xs h-8" asChild>
-            <Link href={`/${project.id}/generate`}>
-              New Update
-            </Link>
-          </Button>
+          {canGenerate && (
+            <Button size="sm" className="flex-1 text-xs h-8" asChild>
+              <Link href={`/${project.id}/generate`}>
+                New Update
+              </Link>
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -382,27 +392,28 @@ export default function ProjectsDashboard() {
     async function fetchProjects() {
       try {
         const supabase = createClient()
-        
+
         // Get current user
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
           router.push("/login")
+          setIsLoading(false)
           return
         }
 
-        // Fetch user role from profiles table
+        let role = user.user_metadata?.role as string | undefined
         const { data: profile } = await supabase
           .from("profiles")
           .select("role")
           .eq("id", user.id)
-          .single()
-        
+          .maybeSingle()
+
         if (profile?.role) {
-          setUserRole(profile.role)
+          role = profile.role
         }
+        setUserRole(role || "developer")
 
         // Fetch projects for this user (via project_user junction table)
-        // First get project IDs the user has access to
         const { data: userProjects, error: userProjectsError } = await supabase
           .from("project_user")
           .select("project_id")
@@ -411,6 +422,7 @@ export default function ProjectsDashboard() {
         if (userProjectsError) {
           console.error("Error fetching user projects:", userProjectsError)
           toast.error("Failed to load projects")
+          setIsLoading(false)
           return
         }
 
@@ -420,7 +432,7 @@ export default function ProjectsDashboard() {
           return
         }
 
-        const projectIds = userProjects.map(up => up.project_id)
+        const projectIds = userProjects.map((up) => up.project_id)
 
         // Then fetch the actual projects
         const { data: projectsData, error } = await supabase
@@ -432,19 +444,18 @@ export default function ProjectsDashboard() {
         if (error) {
           console.error("Error fetching projects:", error)
           toast.error("Failed to load projects")
+          setIsLoading(false)
           return
         }
 
         // Fetch update counts and latest update for each project
         const projectsWithCounts = await Promise.all(
           (projectsData || []).map(async (project) => {
-            // Get update count
             const { count } = await supabase
               .from("updates")
               .select("*", { count: "exact", head: true })
               .eq("project_id", project.id)
 
-            // Get latest update date
             const { data: latestUpdate } = await supabase
               .from("updates")
               .select("created_at")
@@ -456,14 +467,14 @@ export default function ProjectsDashboard() {
             return {
               id: project.id,
               name: project.name,
-              description: project.summary || undefined, // Use summary instead of description
-              githubRepo: project.github_url || undefined, // Use github_url instead of github_repo
-              thumbnail: null, // Can be added later
-              progress: project.progress || 0, // Use progress from database
+              description: project.summary || undefined,
+              githubRepo: project.github_url || undefined,
+              thumbnail: null,
+              progress: project.progress || 0,
               status: project.status,
               updatesCount: count || 0,
-              lastUpdate: latestUpdate?.created_at 
-                ? formatDate(latestUpdate.created_at) 
+              lastUpdate: latestUpdate?.created_at
+                ? formatDate(latestUpdate.created_at)
                 : formatDate(project.created_at),
               createdAt: formatDate(project.created_at),
             }
@@ -471,16 +482,16 @@ export default function ProjectsDashboard() {
         )
 
         setProjects(projectsWithCounts)
+        setIsLoading(false)
       } catch (error) {
         console.error("Error:", error)
         toast.error("Failed to load projects")
-      } finally {
         setIsLoading(false)
       }
     }
 
     fetchProjects()
-  }, [])
+  }, [router])
 
   const activeProjects = projects.filter((p) => p.status === "active")
   const completedProjects = projects.filter((p) => p.status === "completed")
@@ -534,12 +545,14 @@ export default function ProjectsDashboard() {
               Manage your projects and generate updates
             </p>
           </div>
-          <Button asChild>
-            <Link href="/new">
-              <Plus className="h-4 w-4" />
-              New Project
-            </Link>
-          </Button>
+          {userRole === "developer" && (
+            <Button asChild>
+              <Link href="/new">
+                <Plus className="h-4 w-4" />
+                New Project
+              </Link>
+            </Button>
+          )}
         </div>
 
         {/* Stats */}
@@ -624,7 +637,11 @@ export default function ProjectsDashboard() {
             ) : filterProjects(activeProjects).length > 0 ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filterProjects(activeProjects).map((project) => (
-                  <ProjectCard key={project.id} project={project} />
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    canGenerate={userRole === "developer"}
+                  />
                 ))}
               </div>
             ) : (
@@ -641,7 +658,11 @@ export default function ProjectsDashboard() {
             ) : filterProjects(completedProjects).length > 0 ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filterProjects(completedProjects).map((project) => (
-                  <ProjectCard key={project.id} project={project} />
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    canGenerate={userRole === "developer"}
+                  />
                 ))}
               </div>
             ) : (
@@ -658,7 +679,11 @@ export default function ProjectsDashboard() {
             ) : filterProjects(projects).length > 0 ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filterProjects(projects).map((project) => (
-                  <ProjectCard key={project.id} project={project} />
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    canGenerate={userRole === "developer"}
+                  />
                 ))}
               </div>
             ) : (

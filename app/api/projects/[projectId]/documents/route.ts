@@ -175,3 +175,168 @@ export async function POST(
     )
   }
 }
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ projectId: string }> }
+) {
+  try {
+    const supabase = await createClient()
+    
+    // Verify user is authenticated
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { projectId } = await params
+    const { searchParams } = new URL(request.url)
+    const fileName = searchParams.get('fileName')
+
+    if (!fileName) {
+      return NextResponse.json({ error: 'File name is required' }, { status: 400 })
+    }
+
+    // Verify user has access to this project
+    const { data: projectAccess } = await supabase
+      .from('project_user')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!projectAccess) {
+      return NextResponse.json({ error: 'You do not have access to this project' }, { status: 403 })
+    }
+
+    // Only owners can delete files
+    if (!projectAccess.is_owner) {
+      return NextResponse.json({ error: 'Only project owners can delete files' }, { status: 403 })
+    }
+
+    const filePath = `${projectId}/${fileName}`
+
+    // Delete file from Supabase Storage
+    const { error: deleteError } = await supabase.storage
+      .from('project-documents')
+      .remove([filePath])
+
+    if (deleteError) {
+      console.error('Delete error:', deleteError)
+      return NextResponse.json({ 
+        error: deleteError.message || 'Failed to delete file'
+      }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Delete error:', error)
+    return NextResponse.json(
+      { error: 'Failed to delete document' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ projectId: string }> }
+) {
+  try {
+    const supabase = await createClient()
+    
+    // Verify user is authenticated
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { projectId } = await params
+    const body = await request.json()
+    const { oldFileName, newFileName } = body
+
+    if (!oldFileName || !newFileName) {
+      return NextResponse.json({ error: 'Old and new file names are required' }, { status: 400 })
+    }
+
+    // Validate new file name
+    if (!newFileName.endsWith('.pdf')) {
+      return NextResponse.json({ error: 'File name must end with .pdf' }, { status: 400 })
+    }
+
+    // Verify user has access to this project
+    const { data: projectAccess } = await supabase
+      .from('project_user')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!projectAccess) {
+      return NextResponse.json({ error: 'You do not have access to this project' }, { status: 403 })
+    }
+
+    // Only owners can rename files
+    if (!projectAccess.is_owner) {
+      return NextResponse.json({ error: 'Only project owners can rename files' }, { status: 403 })
+    }
+
+    const oldFilePath = `${projectId}/${oldFileName}`
+    const newFilePath = `${projectId}/${newFileName}`
+
+    // Check if new file name already exists
+    const { data: existingFiles } = await supabase.storage
+      .from('project-documents')
+      .list(`${projectId}`, {
+        search: newFileName
+      })
+
+    if (existingFiles && existingFiles.length > 0) {
+      return NextResponse.json({ error: 'A file with this name already exists' }, { status: 400 })
+    }
+
+    // Get the file to copy
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('project-documents')
+      .download(oldFilePath)
+
+    if (downloadError || !fileData) {
+      return NextResponse.json({ error: 'File not found' }, { status: 404 })
+    }
+
+    // Upload with new name
+    const { error: uploadError } = await supabase.storage
+      .from('project-documents')
+      .upload(newFilePath, fileData, {
+        contentType: 'application/pdf',
+        upsert: false,
+      })
+
+    if (uploadError) {
+      return NextResponse.json({ 
+        error: uploadError.message || 'Failed to rename file'
+      }, { status: 500 })
+    }
+
+    // Delete old file
+    const { error: deleteError } = await supabase.storage
+      .from('project-documents')
+      .remove([oldFilePath])
+
+    if (deleteError) {
+      // Try to clean up the new file if deletion fails
+      await supabase.storage.from('project-documents').remove([newFilePath])
+      return NextResponse.json({ 
+        error: 'Failed to delete old file'
+      }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, newFileName })
+  } catch (error) {
+    console.error('Rename error:', error)
+    return NextResponse.json(
+      { error: 'Failed to rename document' },
+      { status: 500 }
+    )
+  }
+}

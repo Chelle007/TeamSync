@@ -23,12 +23,8 @@ export async function GET(request: Request) {
         return NextResponse.redirect(`${origin}/new`)
       }
       
-      // Redirect based on role
-      if (role === 'developer') {
-        return NextResponse.redirect(`${origin}/`)
-      } else {
-        return NextResponse.redirect(`${origin}/demo-project`)
-      }
+      // Redirect to dashboard
+      return NextResponse.redirect(`${origin}/`)
     }
   }
 
