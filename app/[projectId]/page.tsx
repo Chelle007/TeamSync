@@ -541,18 +541,7 @@ export default function ReviewerPortal() {
     nextMilestone: "Loading...",
   }
 
-  // Transform updates for UpdateCard component
-  const transformedUpdates = updates.map((update) => ({
-    id: update.id,
-    title: update.title,
-    date: formatDate(update.created_at),
-    videoUrl: update.video_url || "",
-    docUrl: update.doc_url || "",
-    summary: update.summary,
-    status: update.status === "completed" ? "completed" as const 
-      : update.status === "processing" ? "processing" as const 
-      : "pending" as const,
-  }))
+  // Updates are now handled directly in UpdatesTab component
 
   if (isLoading) {
     return (
@@ -698,7 +687,7 @@ export default function ReviewerPortal() {
             {/* Updates Feed */}
             <UpdatesTab
               isLoadingUpdates={isLoadingUpdates}
-              transformedUpdates={transformedUpdates}
+              updates={updates}
               isDeveloperView={isDeveloperView}
               projectId={projectId}
             />
@@ -714,6 +703,7 @@ export default function ReviewerPortal() {
           <SettingsTab
             project={project}
             projectDetails={projectDetails}
+            projectId={projectId}
           />
         </Tabs>
           </div>
