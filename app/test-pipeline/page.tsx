@@ -5,11 +5,39 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 
+type AIResult = {
+  script: string;
+  changes: Array<{
+    title: string;
+    duration_seconds: number;
+    selector: string;
+  }>;
+};
+
+type PipelineResult = {
+  finalVideoUrl: string;
+  summary: {
+    script: string;
+    changes: Array<{
+      title: string;
+      duration_seconds: number;
+      description: string;
+    }>;
+  };
+  projectId: string;
+  reportKey: string;
+  durations: {
+    videoDuration: number;
+    audioDuration: number;
+  };
+  generatedAt: string;
+};
+
 export default function TestPipelinePage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isTestingAI, setIsTestingAI] = useState(false);
-  const [result, setResult] = useState(null);
-  const [aiResult, setAiResult] = useState(null);
+  const [result, setResult] = useState<PipelineResult | null>(null);
+  const [aiResult, setAiResult] = useState<AIResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const testPayload = {

@@ -143,7 +143,7 @@ export default function ProjectSummaryPage() {
     try {
       const response = await fetch(`/api/projects/${projectId}/commits`)
       if (!response.ok) {
-        const error = await response.json()
+        const error = await response.json() as { error?: string; message?: string }
         
         // Check if we need repo scope for private repos
         if (error.error === 'REPO_SCOPE_REQUIRED') {
