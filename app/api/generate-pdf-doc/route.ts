@@ -1,3 +1,4 @@
+import puppeteer from 'puppeteer';
 import fs from 'fs';
 import path from 'path';
 
@@ -16,6 +17,7 @@ interface Screenshot {
 }
 
 export async function POST(request: Request) {
+  let browser;
   try {
     const { reportKey, projectName, script, changes, screenshots } = await request.json();
 
@@ -26,7 +28,7 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log('📄 Starting HTML document generation for:', reportKey);
+    console.log('📄 Starting PDF generation for:', reportKey);
 
     // Create output directory if it doesn't exist
     const docsDir = path.join(process.cwd(), 'public', 'docs');
@@ -34,8 +36,8 @@ export async function POST(request: Request) {
       fs.mkdirSync(docsDir, { recursive: true });
     }
 
-    const htmlPath = path.join(docsDir, `${reportKey}.html`);
-    const docUrl = `/docs/${reportKey}.html`;
+    const pdfPath = path.join(docsDir, `${reportKey}.pdf`);
+    const docUrl = `/docs/${reportKey}.pdf`;
 
     // Date formatting
     const dateStr = new Date().toLocaleDateString('en-US', {
@@ -45,7 +47,7 @@ export async function POST(request: Request) {
       day: 'numeric',
     });
 
-    // Find screenshots or use changes
+    // Find screenshots
     let screenshotFiles: Screenshot[] = screenshots || [];
 
     if (screenshotFiles.length === 0 && changes) {
@@ -62,7 +64,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // Build changes HTML
+    // Build changes HTML with embedded images
     let changesHtml = '';
     const numChanges = screenshotFiles.length || changes?.length || 0;
     
@@ -71,14 +73,21 @@ export async function POST(request: Request) {
       const change = changes?.[i];
       const title = screenshot?.title || change?.title || `Change ${i + 1}`;
       const description = screenshot?.description || change?.description || '';
-      const imgPath = screenshot?.path || '';
+      
+      // Convert image to base64 for embedding in PDF
+      let imgBase64 = '';
+      const imgFilePath = screenshot?.filepath || (screenshot?.path ? path.join(process.cwd(), 'public', screenshot.path) : '');
+      if (imgFilePath && fs.existsSync(imgFilePath)) {
+        const imgBuffer = fs.readFileSync(imgFilePath);
+        imgBase64 = `data:image/png;base64,${imgBuffer.toString('base64')}`;
+      }
 
       changesHtml += `
-        <div class="change-card">
+        <div class="change-section">
           <h3>${i + 1}. ${escapeHtml(title)}</h3>
-          ${imgPath ? `
-            <div class="screenshot-container">
-              <img src="${imgPath}" alt="${escapeHtml(title)}" class="screenshot" />
+          ${imgBase64 ? `
+            <div class="screenshot-box">
+              <img src="${imgBase64}" alt="${escapeHtml(title)}" />
             </div>
           ` : ''}
           ${description ? `<p class="caption">${escapeHtml(description)}</p>` : ''}
@@ -86,14 +95,18 @@ export async function POST(request: Request) {
       `;
     }
 
-    // Generate HTML document
+    // Generate formal PDF HTML template
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(projectName || 'Project')} Update - ${reportKey}</title>
+  <title>${escapeHtml(projectName || 'Project')} Update Report</title>
   <style>
+    @page {
+      margin: 60px 50px;
+      size: A4;
+    }
+    
     * {
       margin: 0;
       padding: 0;
@@ -101,191 +114,185 @@ export async function POST(request: Request) {
     }
     
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-      padding: 40px 20px;
-    }
-    
-    .container {
-      max-width: 900px;
-      margin: 0 auto;
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 12pt;
+      line-height: 1.6;
+      color: #1a1a1a;
       background: white;
-      border-radius: 16px;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-      overflow: hidden;
     }
     
     .header {
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-      color: white;
-      padding: 40px;
       text-align: center;
+      border-bottom: 2px solid #1a1a1a;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
     }
     
     .header h1 {
-      font-size: 28px;
-      margin-bottom: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
+      font-size: 24pt;
+      font-weight: bold;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
     }
     
-    .header .project-name {
-      font-size: 18px;
-      opacity: 0.9;
-      margin-bottom: 4px;
+    .header .subtitle {
+      font-size: 14pt;
+      color: #444;
+      margin-bottom: 5px;
     }
     
     .header .date {
-      font-size: 14px;
-      opacity: 0.7;
+      font-size: 11pt;
+      color: #666;
+      font-style: italic;
     }
     
-    .content {
-      padding: 40px;
+    .section {
+      margin-bottom: 30px;
     }
     
-    .summary-section {
-      background: #f8fafc;
-      border-radius: 12px;
-      padding: 24px;
-      margin-bottom: 32px;
-      border-left: 4px solid #667eea;
+    .section-title {
+      font-size: 14pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 8px;
+      margin-bottom: 15px;
     }
     
-    .summary-section h2 {
-      font-size: 18px;
-      color: #1a1a2e;
-      margin-bottom: 12px;
+    .summary-text {
+      text-align: justify;
+      font-size: 12pt;
+      line-height: 1.8;
+      color: #333;
     }
     
-    .summary-section p {
-      color: #4a5568;
-      line-height: 1.7;
+    .change-section {
+      margin-bottom: 35px;
+      page-break-inside: avoid;
     }
     
-    .changes-section h2 {
-      font-size: 20px;
-      color: #1a1a2e;
-      margin-bottom: 24px;
-      padding-bottom: 12px;
-      border-bottom: 2px solid #e2e8f0;
+    .change-section h3 {
+      font-size: 13pt;
+      font-weight: bold;
+      margin-bottom: 15px;
+      color: #1a1a1a;
     }
     
-    .change-card {
-      background: #ffffff;
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 24px;
-      margin-bottom: 24px;
-      transition: box-shadow 0.2s;
+    .screenshot-box {
+      border: 1px solid #ddd;
+      padding: 10px;
+      background: #fafafa;
+      margin-bottom: 10px;
+      text-align: center;
     }
     
-    .change-card:hover {
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
-    
-    .change-card h3 {
-      font-size: 16px;
-      color: #2d3748;
-      margin-bottom: 16px;
-    }
-    
-    .screenshot-container {
-      background: #f1f5f9;
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 12px;
-    }
-    
-    .screenshot {
-      width: 100%;
+    .screenshot-box img {
+      max-width: 100%;
       height: auto;
-      border-radius: 6px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      max-height: 350px;
+      object-fit: contain;
     }
     
     .caption {
-      font-size: 14px;
-      color: #64748b;
+      font-size: 11pt;
       font-style: italic;
+      color: #555;
       text-align: center;
       margin-top: 8px;
     }
     
     .footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
       text-align: center;
-      padding: 24px;
-      background: #f8fafc;
-      color: #94a3b8;
-      font-size: 12px;
+      font-size: 9pt;
+      color: #999;
+      padding: 10px 0;
+      border-top: 1px solid #eee;
     }
     
-    @media print {
-      body {
-        background: white;
-        padding: 0;
-      }
-      .container {
-        box-shadow: none;
-      }
-      .change-card {
-        break-inside: avoid;
-      }
+    .divider {
+      border: none;
+      border-top: 1px solid #ddd;
+      margin: 25px 0;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>📋 Project Update Report</h1>
-      <div class="project-name">${escapeHtml(projectName || 'Project')}</div>
-      <div class="date">${dateStr}</div>
+  <div class="header">
+    <h1>Project Update Report</h1>
+    <div class="subtitle">${escapeHtml(projectName || 'Project')}</div>
+    <div class="date">${dateStr}</div>
+  </div>
+  
+  ${script ? `
+    <div class="section">
+      <div class="section-title">Executive Summary</div>
+      <p class="summary-text">${escapeHtml(script)}</p>
     </div>
-    
-    <div class="content">
-      ${script ? `
-        <div class="summary-section">
-          <h2>📝 Summary</h2>
-          <p>${escapeHtml(script)}</p>
-        </div>
-      ` : ''}
-      
-      <div class="changes-section">
-        <h2>🔄 Changes</h2>
-        ${changesHtml || '<p style="color: #94a3b8;">No changes recorded.</p>'}
-      </div>
-    </div>
-    
-    <div class="footer">
-      Generated by TeamSync • ${new Date().toISOString()}
-    </div>
+    <hr class="divider" />
+  ` : ''}
+  
+  <div class="section">
+    <div class="section-title">Changes Overview</div>
+    ${changesHtml || '<p>No changes recorded in this update.</p>'}
+  </div>
+  
+  <div class="footer">
+    Generated by TeamSync &bull; ${new Date().toISOString().split('T')[0]}
   </div>
 </body>
 </html>`;
 
-    // Write HTML file
-    fs.writeFileSync(htmlPath, html);
+    // Launch Puppeteer and generate PDF
+    console.log('🖨️ Rendering PDF with Puppeteer...');
+    browser = await puppeteer.launch({ 
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+    
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    
+    // Generate PDF
+    await page.pdf({
+      path: pdfPath,
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '60px',
+        bottom: '60px',
+        left: '50px',
+        right: '50px',
+      },
+    });
 
-    console.log('✅ HTML document generated:', docUrl);
+    await browser.close();
+    browser = null;
+
+    console.log('✅ PDF generated:', docUrl);
 
     return new Response(
       JSON.stringify({
         success: true,
         documentUrl: docUrl,
-        documentPath: htmlPath,
-        title: `${projectName || 'Project'} Update - ${reportKey}`,
+        documentPath: pdfPath,
+        title: `${projectName || 'Project'} Update Report - ${reportKey}`,
       }),
       { status: 200 }
     );
 
   } catch (error: any) {
-    console.error('❌ Document generation failed:', error);
+    if (browser) await browser.close();
+    console.error('❌ PDF generation failed:', error);
     return new Response(
       JSON.stringify({
-        error: error.message || 'Failed to generate document',
+        error: error.message || 'Failed to generate PDF',
         details: error.toString(),
       }),
       { status: 500 }
