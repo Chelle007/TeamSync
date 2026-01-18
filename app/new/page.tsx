@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -20,7 +20,9 @@ import {
   Lock,
   Upload,
   FileText,
-  X
+  X,
+  Image as ImageIcon,
+  Trash2
 } from "lucide-react"
 import { toast } from "sonner"
 import { parseGitHubUrl, verifyGitHubRepoAccess, type GitHubRepoData } from "@/lib/github"
@@ -40,6 +42,9 @@ export default function NewProjectPage() {
   })
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [scopeInputType, setScopeInputType] = useState<"text" | "pdf">("text")
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null)
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null)
+  const thumbnailInputRef = useRef<HTMLInputElement>(null)
   
   // GitHub verification state
   const [repoStatus, setRepoStatus] = useState<RepoVerificationStatus>("idle")
@@ -237,6 +242,38 @@ export default function NewProjectPage() {
     setScopeInputType('text')
   }
 
+  const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type
+      const validImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
+      if (!validImageTypes.includes(file.type)) {
+        toast.error('Please upload a valid image file (JPEG, PNG, WebP, or GIF)')
+        return
+      }
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image file size must be less than 5MB')
+        return
+      }
+      setThumbnailFile(file)
+      // Create preview URL
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setThumbnailPreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleRemoveThumbnail = () => {
+    setThumbnailFile(null)
+    setThumbnailPreview(null)
+    if (thumbnailInputRef.current) {
+      thumbnailInputRef.current.value = ''
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -341,6 +378,28 @@ export default function NewProjectPage() {
       if (!project || !project.id) {
         toast.error("Failed to create project. Please try again.")
         return
+      }
+
+      // Upload thumbnail if provided
+      if (thumbnailFile && project.id) {
+        try {
+          const thumbnailFormData = new FormData()
+          thumbnailFormData.append('file', thumbnailFile)
+
+          const thumbnailResponse = await fetch(`/api/projects/${project.id}/thumbnail`, {
+            method: 'POST',
+            body: thumbnailFormData,
+          })
+
+          if (!thumbnailResponse.ok) {
+            const error = await thumbnailResponse.json()
+            console.warn('Thumbnail upload failed:', error)
+            // Don't fail the whole flow if thumbnail upload fails
+          }
+        } catch (thumbnailError) {
+          console.error('Thumbnail upload error:', thumbnailError)
+          // Don't fail the whole flow
+        }
       }
 
       toast.success("Project created successfully!")
@@ -613,6 +672,58 @@ export default function NewProjectPage() {
                     </p>
                   </div>
                 )}
+              </div>
+
+              {/* Project Thumbnail */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Home Picture</label>
+                <div className="space-y-2">
+                  {thumbnailPreview ? (
+                    <div className="relative group">
+                      <div className="aspect-video rounded-lg overflow-hidden border bg-muted">
+                        <img
+                          src={thumbnailPreview}
+                          alt="Thumbnail preview"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="h-8 px-3"
+                          onClick={handleRemoveThumbnail}
+                        >
+                          <Trash2 className="h-3 w-3 mr-1.5" />
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div 
+                      className="aspect-video rounded-lg border-2 border-dashed bg-muted/50 flex items-center justify-center hover:border-primary/50 transition-colors cursor-pointer group"
+                      onClick={() => thumbnailInputRef.current?.click()}
+                    >
+                      <div className="text-center p-6">
+                        <ImageIcon className="h-8 w-8 mx-auto mb-2 text-muted-foreground group-hover:text-primary transition-colors" />
+                        <p className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+                          Click to upload thumbnail (optional)
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          JPEG, PNG, WebP, or GIF (max 5MB)
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <input
+                    ref={thumbnailInputRef}
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                    onChange={handleThumbnailChange}
+                    className="hidden"
+                  />
+                </div>
               </div>
 
               {/* Project URL */}

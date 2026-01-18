@@ -79,3 +79,45 @@ USING (
     (storage.foldername(name))[2] = auth.uid()::text
   )
 );
+
+-- Storage policies for project-thumbnails bucket
+-- Helper function to check if user is project owner
+CREATE OR REPLACE FUNCTION user_is_project_owner_for_storage(p_project_id TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM public.project_user
+        WHERE project_id::text = p_project_id
+        AND user_id = auth.uid()
+        AND is_owner = true
+    );
+END;
+$$;
+
+-- Allow project owners to upload thumbnails to their projects
+DROP POLICY IF EXISTS "Project owners can upload thumbnails" ON storage.objects;
+CREATE POLICY "Project owners can upload thumbnails"
+ON storage.objects FOR INSERT
+WITH CHECK (
+  bucket_id = 'project-thumbnails' AND
+  user_is_project_owner_for_storage((storage.foldername(name))[1])
+);
+
+-- Allow everyone to view thumbnails (public bucket)
+DROP POLICY IF EXISTS "Anyone can view thumbnails" ON storage.objects;
+CREATE POLICY "Anyone can view thumbnails"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'project-thumbnails');
+
+-- Allow project owners to delete thumbnails from their projects
+DROP POLICY IF EXISTS "Project owners can delete thumbnails" ON storage.objects;
+CREATE POLICY "Project owners can delete thumbnails"
+ON storage.objects FOR DELETE
+USING (
+  bucket_id = 'project-thumbnails' AND
+  user_is_project_owner_for_storage((storage.foldername(name))[1])
+);
