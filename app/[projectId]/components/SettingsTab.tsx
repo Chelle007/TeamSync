@@ -504,6 +504,132 @@ export function SettingsTab({
                     <p className="text-sm text-muted-foreground mt-0.5">Manage team access</p>
                   </div>
                 </div>
+              {project && (
+                <>
+                  <div className="p-4 rounded-lg bg-muted/50">
+                    <h4 className="font-semibold mb-2">Links</h4>
+                    <div className="space-y-2 text-sm">
+                      {project.github_url && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">GitHub Repository</span>
+                          <a 
+                            href={project.github_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline flex items-center gap-1"
+                          >
+                            View <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
+                      )}
+                      {project.live_url && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Live Site</span>
+                          <a 
+                            href={project.live_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline flex items-center gap-1"
+                          >
+                            Visit <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* GitHub Webhook Setup */}
+                  {project.github_url && isOwner && (
+                    <div className="p-4 rounded-lg bg-muted/50 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-semibold flex items-center gap-2">
+                            <Webhook className="h-4 w-4" />
+                            GitHub Webhook
+                          </h4>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Automatically receive PR updates
+                          </p>
+                        </div>
+                        <Button
+                          onClick={handleSetupWebhook}
+                          disabled={isSettingUpWebhook}
+                          size="sm"
+                        >
+                          {isSettingUpWebhook ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Setting up...
+                            </>
+                          ) : (
+                            <>
+                              <Webhook className="h-4 w-4 mr-2" />
+                              Setup Webhook
+                            </>
+                          )}
+                        </Button>
+                      </div>
+
+                      {webhookStatus === 'success' && (
+                        <div className="flex items-start gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                              {webhookMessage}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Your project will now automatically receive updates when PRs are merged.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {webhookStatus === 'error' && (
+                        <div className="space-y-2">
+                          <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                            <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-destructive">
+                                {webhookMessage}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Make sure you have admin access to the repository.
+                              </p>
+                            </div>
+                          </div>
+                          {webhookMessage.includes('permissions') && (
+                            <Button
+                              onClick={handleReauthenticate}
+                              disabled={isReauthenticating}
+                              variant="outline"
+                              size="sm"
+                              className="w-full"
+                            >
+                              {isReauthenticating ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Redirecting...
+                                </>
+                              ) : (
+                                <>
+                                  <GitBranch className="h-4 w-4 mr-2" />
+                                  Re-authenticate with GitHub
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      )}
+
+                      {webhookStatus === 'idle' && (
+                        <p className="text-xs text-muted-foreground">
+                          Click "Setup Webhook" to automatically configure GitHub to send PR updates to this project.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
 
               {/* Add Member Form */}
               <div className="space-y-3">
