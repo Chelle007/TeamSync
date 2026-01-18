@@ -6,7 +6,7 @@ import { TabsContent } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Settings, ExternalLink, GitBranch, UserPlus, Mail, X, Loader2, Trash2, Crown, Webhook, CheckCircle2, AlertCircle, Edit2, Check } from "lucide-react"
+import { Settings, ExternalLink, GitBranch, UserPlus, Mail, X, Loader2, Trash2, Crown, Edit2, Check } from "lucide-react"
 import { toast } from "sonner"
 import { createClient } from "@/utils/supabase/client"
 import type { Project } from "@/types/database"
@@ -55,10 +55,6 @@ export function SettingsTab({
   const [isEditingName, setIsEditingName] = useState(false)
   const [editedName, setEditedName] = useState(projectDetails.name)
   const [isSavingName, setIsSavingName] = useState(false)
-  const [isSettingUpWebhook, setIsSettingUpWebhook] = useState(false)
-  const [webhookStatus, setWebhookStatus] = useState<'idle' | 'success' | 'error'>('idle')
-  const [webhookMessage, setWebhookMessage] = useState('')
-  const [isReauthenticating, setIsReauthenticating] = useState(false)
 
   useEffect(() => {
     async function fetchData() {
@@ -217,82 +213,6 @@ export function SettingsTab({
       toast.error(error instanceof Error ? error.message : 'Failed to update project name')
     } finally {
       setIsSavingName(false)
-    }
-  }
-
-  async function handleSetupWebhook() {
-    if (!project?.github_url) {
-      toast.error('No GitHub repository linked to this project')
-      return
-    }
-
-    setIsSettingUpWebhook(true)
-    setWebhookStatus('idle')
-    setWebhookMessage('')
-
-    try {
-      const response = await fetch('/api/projects/setup-webhook', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ projectId }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        // Check if it's a permissions error
-        if (response.status === 401 || response.status === 403 || 
-            data.error?.includes('admin access') || data.error?.includes('authentication')) {
-          setWebhookStatus('error')
-          setWebhookMessage('GitHub permissions needed. Click "Re-authenticate" below.')
-          toast.error('GitHub permissions needed. Please re-authenticate.')
-        } else {
-          throw new Error(data.error || 'Failed to setup webhook')
-        }
-        return
-      }
-
-      setWebhookStatus('success')
-      setWebhookMessage(data.message || 'Webhook configured successfully!')
-      toast.success(data.message || 'Webhook configured successfully!')
-    } catch (error) {
-      console.error('Error setting up webhook:', error)
-      setWebhookStatus('error')
-      const errorMsg = error instanceof Error ? error.message : 'Failed to setup webhook'
-      setWebhookMessage(errorMsg)
-      toast.error(errorMsg)
-    } finally {
-      setIsSettingUpWebhook(false)
-    }
-  }
-
-  async function handleReauthenticate() {
-    setIsReauthenticating(true)
-    try {
-      const supabase = createClient()
-      
-      // Store current project ID to return here after auth
-      sessionStorage.setItem('return_to_project', projectId)
-      
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'github',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback?role=developer&return_to=project`,
-          queryParams: {
-            scope: 'repo read:user user:email',
-          },
-        },
-      })
-
-      if (error) {
-        throw error
-      }
-    } catch (error) {
-      console.error('Re-authentication error:', error)
-      toast.error('Failed to re-authenticate. Please try again.')
-      setIsReauthenticating(false)
     }
   }
 
@@ -504,7 +424,6 @@ export function SettingsTab({
                     <p className="text-sm text-muted-foreground mt-0.5">Manage team access</p>
                   </div>
                 </div>
-
               {/* Add Member Form */}
               <div className="space-y-3">
                 <form onSubmit={handleAddMember} className="flex gap-2">

@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { FileText, Upload, GitBranch, ExternalLink, Calendar, Loader2, X, Check, Pencil, Trash2, FileCheck } from "lucide-react"
+import { FileText, Upload, GitBranch, ExternalLink, Calendar, Loader2, X, Check, Pencil, Trash2, FileCheck, Globe } from "lucide-react"
 import type { Project } from "@/types/database"
 import { toast } from "sonner"
 import { useMemo, ReactElement } from "react"
@@ -234,20 +234,23 @@ export function DashboardTab({
           <p className="text-muted-foreground text-lg max-w-3xl leading-relaxed">
             {projectDetails.description}
           </p>
-          {project?.github_url && (
-            <div className="flex items-center gap-3">
-              <Button variant="outline" size="default" asChild className="h-10 px-4">
-                <a href={project.github_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                  <GitBranch className="h-5 w-5" />
-                  <span className="font-medium">{getRepoName(project.github_url) || "View Repository"}</span>
-                  <ExternalLink className="h-4 w-4 opacity-60" />
-                </a>
-              </Button>
+          {(project?.github_url || project?.live_url) && (
+            <div className="flex flex-col gap-2">
+              {project?.github_url && (
+                <Button variant="outline" size="default" asChild className="h-10 px-4 w-fit">
+                  <a href={project.github_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+                    <GitBranch className="h-5 w-5" />
+                    <span className="font-medium">{getRepoName(project.github_url) || "View Repository"}</span>
+                    <ExternalLink className="h-4 w-4 opacity-60" />
+                  </a>
+                </Button>
+              )}
               {project?.live_url && (
-                <Button variant="outline" size="default" asChild className="h-10">
+                <Button variant="outline" size="default" asChild className="h-10 px-4 w-fit border-2 border-input">
                   <a href={project.live_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                    <ExternalLink className="h-5 w-5" />
-                    <span>Live Site</span>
+                    <Globe className="h-5 w-5 shrink-0" />
+                    <span className="font-medium truncate max-w-[380px]">{project.live_url}</span>
+                    <ExternalLink className="h-4 w-4 opacity-60 shrink-0" />
                   </a>
                 </Button>
               )}
