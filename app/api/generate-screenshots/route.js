@@ -1,17 +1,19 @@
 import puppeteer from 'puppeteer';
 import fs from 'fs';
 import path from 'path';
+import { uploadScreenshot } from '@/lib/storage';
 
 export async function POST(request) {
   let browser;
   try {
-    const { changes, reportKey } = await request.json();
+    const { changes, reportKey, liveUrl } = await request.json();
 
     if (!changes || !Array.isArray(changes)) {
       return new Response(JSON.stringify({ error: 'Changes array is required' }), { status: 400 });
     }
 
-    const baseUrl = process.env.DEPLOYED_SITE_URL;
+    // Use liveUrl from request, or fall back to env variable
+    const baseUrl = liveUrl || process.env.DEPLOYED_SITE_URL;
     const screenshotsDir = path.join(process.cwd(), 'public', 'screenshots', reportKey || 'default');
 
     // Create directory if it doesn't exist
@@ -53,15 +55,23 @@ export async function POST(request) {
       const filepath = path.join(screenshotsDir, filename);
       await page.screenshot({ path: filepath, fullPage: false });
 
+      // Upload to Supabase Storage
+      console.log(`☁️ Uploading screenshot ${filename} to Supabase...`);
+      const screenshotUrl = await uploadScreenshot(filepath, reportKey || 'default', filename);
+
+      // NOTE: Don't delete local files here - they may be needed by PDF generation
+
       screenshots.push({
         index: i,
         title: change.title,
+        description: change.description || '',
         path: `/screenshots/${reportKey || 'default'}/${filename}`,
+        screenshotUrl: screenshotUrl || `/screenshots/${reportKey || 'default'}/${filename}`, // Supabase URL or fallback
         filepath,
         duration: change.duration_seconds,
       });
 
-      console.log(`Screenshot saved: ${filename}`);
+      console.log(`✅ Screenshot saved: ${filename}${screenshotUrl ? ' (uploaded to Supabase)' : ''}`);
     }
 
     await browser.close();

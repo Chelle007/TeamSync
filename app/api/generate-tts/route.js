@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
+import { uploadAudio } from '@/lib/storage';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -22,7 +23,7 @@ export async function POST(request) {
       speed: 1.1, // 1.0 is normal, 1.25 is max (faster)
     });
 
-    // Save audio file locally
+    // Save audio file locally (temp)
     const buffer = Buffer.from(await mp3.arrayBuffer());
     const audioDir = path.join(process.cwd(), 'public', 'audio');
     
@@ -35,10 +36,22 @@ export async function POST(request) {
     const filepath = path.join(audioDir, filename);
     fs.writeFileSync(filepath, buffer);
 
+    // Upload to Supabase Storage
+    console.log('☁️ Uploading audio to Supabase...');
+    const audioUrl = await uploadAudio(filepath, reportKey || Date.now().toString());
+
+    if (audioUrl) {
+      console.log('✅ Audio uploaded to Supabase:', audioUrl);
+      // NOTE: Don't delete local file here - it's still needed by combine-video-audio
+    } else {
+      console.warn('⚠️ Supabase upload failed, keeping local file');
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         audioPath: `/audio/${filename}`,
+        audioUrl: audioUrl || `/audio/${filename}`, // Supabase URL or fallback to local
         filepath,
       }),
       { status: 200 }
