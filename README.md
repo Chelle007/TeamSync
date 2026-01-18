@@ -22,6 +22,7 @@
 - **Text-to-Speech Narration** — Converts summaries to natural voice narration
 - **Visual Screenshots** — Captures relevant screenshots from your live app
 - **Video Compilation** — Combines everything into polished video updates
+- **PDF Reports** — Generates downloadable update reports with screenshots and descriptions
 
 ### 🤖 AI Assistant
 - **Context-Aware Chat** — Ask questions about your project and get intelligent responses
@@ -30,8 +31,8 @@
 
 ### 👥 Team Collaboration
 - **Role-Based Access** — Separate views for developers and reviewers
-- **Project Invitations** — Invite team members via email
-- **Real-time Updates** — Live notifications when new updates are available
+- **Add Team Members** — Add existing users to projects by email lookup
+- **Update Notifications** — See new video updates as they're generated
 
 ### 📊 Project Management
 - **Dashboard Overview** — Track project progress and status
@@ -47,7 +48,7 @@
 |----------|-------------|
 | **Framework** | Next.js 16 (App Router), React 19, TypeScript |
 | **Styling** | Tailwind CSS 4, Framer Motion |
-| **Database & Auth** | Supabase (PostgreSQL, Auth, Storage, Realtime) |
+| **Database & Auth** | Supabase (PostgreSQL, Auth, Storage) |
 | **AI/ML** | OpenAI GPT-4o, OpenAI TTS |
 | **Media Processing** | Puppeteer (screenshots), FFmpeg (video) |
 | **UI Components** | Radix UI, Lucide Icons, Sonner |
@@ -143,32 +144,18 @@ TeamSync/
 
 ## 🔄 How It Works
 
-```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  PR Merged on   │────▶│  GitHub Webhook  │────▶│  Store Event    │
-│    GitHub       │     │    Received      │     │  in Database    │
-└─────────────────┘     └──────────────────┘     └────────┬────────┘
-                                                          │
-                                                          ▼
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Final Video    │◀────│  Combine Audio   │◀────│  Generate TTS   │
-│   Generated     │     │  + Screenshots   │     │  from Summary   │
-└─────────────────┘     └──────────────────┘     └────────┬────────┘
-                                                          │
-                                                          ▼
-                                                 ┌─────────────────┐
-                                                 │  AI Summarizes  │
-                                                 │   PR Changes    │
-                                                 └─────────────────┘
-```
+<p align="center">
+  <img src="public/architecture.jpg" alt="TeamSync Architecture" width="700" />
+</p>
 
-1. **Webhook Trigger** — When a PR is merged, GitHub sends a webhook to TeamSync
-2. **Event Processing** — The webhook payload is stored and queued for processing
-3. **AI Summarization** — OpenAI analyzes the PR changes and generates a summary
-4. **TTS Generation** — The summary is converted to speech using OpenAI TTS
-5. **Screenshot Capture** — Puppeteer captures relevant screenshots from the live app
-6. **Video Assembly** — FFmpeg combines audio and visuals into a final video
-7. **Real-time Notification** — Users are notified instantly via Supabase Realtime
+### Pipeline Overview
+
+1. **GitHub PR Trigger** — When a PR is merged, GitHub webhook triggers the pipeline
+2. **AI Summarizer** — Analyzes PR changes with context from project briefs and meeting minutes
+3. **Dual Output Generation:**
+   - **Video Generator** — Script → TTS + Screen Recording → Combined video
+   - **PDF Generator** — Screenshots + Generated captions → Combined PDF report
+4. **Update Available** — New video and PDF appear in the project dashboard
 
 ---
 
@@ -218,12 +205,6 @@ node scripts/test-tts.js
 # Test screenshot capture
 node scripts/test-screenshots.js
 ```
-
----
-
-## 📄 License
-
-This project was built for **Hack&Roll 2026**.
 
 ---
 
