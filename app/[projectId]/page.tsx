@@ -754,9 +754,11 @@ export default function ReviewerPortal() {
               )}
               <Button variant="ghost" size="icon" className="relative">
                 <Bell className="h-5 w-5" />
-                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-primary text-[10px] font-bold flex items-center justify-center text-primary-foreground">
-                  {updates.filter(u => u.status === "processing").length || 0}
-                </span>
+                {updates.filter(u => u.status === "processing").length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-primary text-[10px] font-bold flex items-center justify-center text-primary-foreground">
+                    {updates.filter(u => u.status === "processing").length}
+                  </span>
+                )}
               </Button>
 
               <UserProfileDropdown />
