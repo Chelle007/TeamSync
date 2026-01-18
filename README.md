@@ -1,36 +1,235 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+<p align="center">
+  <img src="public/logo.png" alt="TeamSync Logo" width="80" height="80" />
+</p>
 
-## Getting Started
+<h1 align="center">TeamSync</h1>
 
-First, run the development server:
+<p align="center">
+  <strong>AI-Powered Project Update Videos from GitHub Activity</strong>
+</p>
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+<p align="center">
+  Automatically generate engaging video updates when PRs are merged, keeping stakeholders informed without manual effort.
+</p>
+
+---
+
+## ✨ Features
+
+### 🎬 Automated Video Generation
+- **GitHub Webhook Integration** — Automatically captures PR merge events
+- **AI-Powered Summarization** — Generates concise summaries of code changes using OpenAI
+- **Text-to-Speech Narration** — Converts summaries to natural voice narration
+- **Visual Screenshots** — Captures relevant screenshots from your live app
+- **Video Compilation** — Combines everything into polished video updates
+
+### 🤖 AI Assistant
+- **Context-Aware Chat** — Ask questions about your project and get intelligent responses
+- **Project Knowledge** — Understands project scope, updates, and documentation
+- **Clarification System** — Facilitates bidirectional communication between developers and reviewers
+
+### 👥 Team Collaboration
+- **Role-Based Access** — Separate views for developers and reviewers
+- **Project Invitations** — Invite team members via email
+- **Real-time Updates** — Live notifications when new updates are available
+
+### 📊 Project Management
+- **Dashboard Overview** — Track project progress and status
+- **Update History** — Browse all generated video updates
+- **Document Management** — Upload and manage project documentation (PDFs)
+- **Progress Tracking** — Monitor milestones and completion status
+
+---
+
+## 🛠️ Tech Stack
+
+| Category | Technologies |
+|----------|-------------|
+| **Framework** | Next.js 16 (App Router), React 19, TypeScript |
+| **Styling** | Tailwind CSS 4, Framer Motion |
+| **Database & Auth** | Supabase (PostgreSQL, Auth, Storage, Realtime) |
+| **AI/ML** | OpenAI GPT-4o, OpenAI TTS |
+| **Media Processing** | Puppeteer (screenshots), FFmpeg (video) |
+| **UI Components** | Radix UI, Lucide Icons, Sonner |
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Node.js 18+ 
+- npm, yarn, pnpm, or bun
+- [Supabase](https://supabase.com) account
+- [OpenAI API](https://platform.openai.com) key
+- FFmpeg installed locally
+
+### Environment Variables
+
+Create a `.env.local` file in the root directory:
+
+```env
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
+# OpenAI
+OPENAI_API_KEY=your_openai_api_key
+
+# App URL
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Database Setup
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+Run the SQL schema in your Supabase SQL Editor:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# The schema is located at:
+supabase_schema.sql
+```
 
-## Learn More
+This creates all necessary tables, functions, RLS policies, and storage buckets.
 
-To learn more about Next.js, take a look at the following resources:
+### Installation
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+# Clone the repository
+git clone https://github.com/your-username/teamsync.git
+cd teamsync
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Install dependencies
+npm install
 
-## Deploy on Vercel
+# Run the development server
+npm run dev
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Open [http://localhost:3000](http://localhost:3000) to see the app.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## 📁 Project Structure
+
+```
+TeamSync/
+├── app/
+│   ├── [projectId]/           # Project detail pages
+│   │   ├── components/        # Dashboard, Updates, Assistant, Settings tabs
+│   │   └── page.tsx          
+│   ├── api/                   # API routes
+│   │   ├── generate-tts/      # Text-to-speech generation
+│   │   ├── generate-video/    # Video compilation
+│   │   ├── generate-screenshots/
+│   │   ├── projects/          # Project CRUD & features
+│   │   └── webhooks/          # GitHub webhook handler
+│   ├── login/                 # Authentication
+│   └── new/                   # Create new project
+├── components/
+│   ├── ui/                    # Reusable UI components
+│   ├── chat-interface.tsx     # AI chat component
+│   └── update-card.tsx        # Update display card
+├── lib/
+│   ├── github.ts              # GitHub API utilities
+│   ├── google-docs.ts         # Google Docs integration
+│   ├── storage.ts             # Supabase storage helpers
+│   └── webhook-processor.ts   # Webhook event processing
+├── utils/supabase/            # Supabase client utilities
+└── types/                     # TypeScript type definitions
+```
+
+---
+
+## 🔄 How It Works
+
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  PR Merged on   │────▶│  GitHub Webhook  │────▶│  Store Event    │
+│    GitHub       │     │    Received      │     │  in Database    │
+└─────────────────┘     └──────────────────┘     └────────┬────────┘
+                                                          │
+                                                          ▼
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  Final Video    │◀────│  Combine Audio   │◀────│  Generate TTS   │
+│   Generated     │     │  + Screenshots   │     │  from Summary   │
+└─────────────────┘     └──────────────────┘     └────────┬────────┘
+                                                          │
+                                                          ▼
+                                                 ┌─────────────────┐
+                                                 │  AI Summarizes  │
+                                                 │   PR Changes    │
+                                                 └─────────────────┘
+```
+
+1. **Webhook Trigger** — When a PR is merged, GitHub sends a webhook to TeamSync
+2. **Event Processing** — The webhook payload is stored and queued for processing
+3. **AI Summarization** — OpenAI analyzes the PR changes and generates a summary
+4. **TTS Generation** — The summary is converted to speech using OpenAI TTS
+5. **Screenshot Capture** — Puppeteer captures relevant screenshots from the live app
+6. **Video Assembly** — FFmpeg combines audio and visuals into a final video
+7. **Real-time Notification** — Users are notified instantly via Supabase Realtime
+
+---
+
+## 👤 User Roles
+
+| Role | Sign In Method | Capabilities |
+|------|---------------|--------------|
+| **Developer** | GitHub OAuth | Create projects, link repos, manage webhooks, full access |
+| **Reviewer** | Google OAuth / Email | View updates, use AI assistant, send clarifications |
+
+---
+
+## 📝 API Routes
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/webhooks/github` | POST | Receives GitHub webhook events |
+| `/api/projects/[id]/generate-video` | POST | Triggers video generation |
+| `/api/generate-tts` | POST | Generates TTS audio from script |
+| `/api/generate-screenshots` | POST | Captures screenshots |
+| `/api/projects/[id]/assistant` | POST | AI assistant chat |
+| `/api/projects/[id]/clarifications` | GET/POST | Manage clarifications |
+
+---
+
+## 🔐 Security
+
+- **Row Level Security (RLS)** — Database access controlled at row level
+- **Webhook Signature Verification** — GitHub webhooks verified with secret
+- **Role-Based Access Control** — Different permissions for developers/reviewers
+- **Secure Token Storage** — GitHub tokens stored encrypted in Supabase
+
+---
+
+## 🧪 Scripts
+
+```bash
+# Test the full video generation pipeline
+node scripts/test-full-pipeline.js
+
+# Test webhook flow
+node scripts/test-webhook-flow.js
+
+# Test TTS generation
+node scripts/test-tts.js
+
+# Test screenshot capture
+node scripts/test-screenshots.js
+```
+
+---
+
+## 📄 License
+
+This project was built for **Hack&Roll 2026**.
+
+---
+
+## 🙏 Acknowledgments
+
+- [Next.js](https://nextjs.org) — React framework
+- [Supabase](https://supabase.com) — Backend as a Service
+- [OpenAI](https://openai.com) — AI models for summarization and TTS
+- [Vercel](https://vercel.com) — Deployment platform
