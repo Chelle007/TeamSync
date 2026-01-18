@@ -159,7 +159,7 @@ const EmptyState = ({ icon: Icon, title, subtitle }: { icon: typeof MessageSquar
 )
 
 const CardActions = ({ children }: { children: ReactNode }) => (
-  <div className="flex items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">{children}</div>
+  <div className="flex items-center gap-2 pt-3 border-t border-border/30">{children}</div>
 )
 
 const IconBtn = ({ icon: Icon, onClick, variant = "default", label }: { icon: typeof Eye; onClick: () => void; variant?: "default" | "danger"; label: string }) => (
@@ -182,7 +182,7 @@ const ClarificationCard = ({ question, reason, status, isDev, meta, actions }: {
   meta?: ReactNode
   actions: ReactNode
 }) => (
-  <div className="rounded-2xl border border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-md transition-all p-5 space-y-3 dark:bg-slate-900 dark:border-slate-700/80 dark:hover:border-slate-600">
+  <div className="rounded-2xl bg-gradient-to-br from-muted/70 to-muted/50 border border-border/40 hover:border-border/60 hover:shadow-md transition-all p-5 space-y-3">
     <div className="space-y-3">
       {/* Updated: Nested div to group Badge and Question closer together */}
       <div className="space-y-1.5">
@@ -426,8 +426,8 @@ export function AssistantTab({ isDeveloperView, projectId }: AssistantTabProps) 
     <TabsContent value="assistant" className="mt-8">
       <div className="grid xl:grid-cols-[1fr_1.8fr] gap-6">
         {/* Sidebar */}
-        <Card className="border border-slate-200/80 bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm dark:bg-slate-900/80 dark:border-slate-700/80">
-          <CardContent className="p-6 space-y-6 h-[calc(100vh-12rem)] flex flex-col overflow-hidden">
+        <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-8 space-y-6 h-[calc(100vh-12rem)] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
               <div className="space-y-1">
                 <h3 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Clarification</h3>
@@ -508,8 +508,8 @@ export function AssistantTab({ isDeveloperView, projectId }: AssistantTabProps) 
         </Card>
 
         {/* Chat Panel */}
-        <Card className="border border-slate-200/80 bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm dark:bg-slate-900/80 dark:border-slate-700/80">
-          <CardContent className="p-6 flex flex-col gap-6 h-[calc(100vh-12rem)] overflow-hidden">
+        <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-8 flex flex-col gap-6 h-[calc(100vh-12rem)] overflow-hidden">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="size-10 rounded-xl bg-gradient-to-br from-teal-100 to-teal-50 text-teal-600 flex items-center justify-center dark:from-teal-900/50 dark:to-teal-800/30 dark:text-teal-400">
