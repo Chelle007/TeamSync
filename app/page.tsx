@@ -19,7 +19,6 @@ import {
 import { createClient } from "@/utils/supabase/client"
 import { toast } from "sonner"
 import {
-  Zap,
   Plus,
   Search,
   LayoutGrid,
@@ -387,7 +386,6 @@ function UserProfileDropdown() {
 
 export default function ProjectsDashboard() {
   const [searchQuery, setSearchQuery] = useState("")
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [userRole, setUserRole] = useState<string | null>(null)
@@ -582,7 +580,7 @@ export default function ProjectsDashboard() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-md">
-              <Zap className="h-5 w-5 text-primary-foreground" />
+              <img src="/logo.png" alt="TeamSync" className="h-13 w-13" />
             </div>
             <span className="text-xl font-bold tracking-tight">TeamSync</span>
           </Link>
@@ -615,9 +613,11 @@ export default function ProjectsDashboard() {
           </div>
           {userRole === "developer" && (
             <Button asChild className="whitespace-nowrap">
-              <Link href="/new" className="flex items-center gap-2">
-                <Plus className="h-4 w-4 shrink-0" />
-                <span>New Project</span>
+              <Link href="/new" className="flex items-center gap-3">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-emerald-950">
+                  <Plus className="h-4 w-4" />
+                </span>
+                <span className="font-semibold">New Project</span>
               </Link>
             </Button>
           )}
@@ -644,57 +644,38 @@ export default function ProjectsDashboard() {
           ))}
         </div>
 
-        {/* Filters & Search */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search projects..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant={viewMode === "grid" ? "secondary" : "ghost"}
-              size="icon"
-              onClick={() => setViewMode("grid")}
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === "list" ? "secondary" : "ghost"}
-              size="icon"
-              onClick={() => setViewMode("list")}
-            >
-              <List className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
         {/* Tabs */}
         <Tabs defaultValue="active" className="space-y-6">
-          <div className="flex justify-center">
+          {/* Filters & Search */}
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <TabsList>
-            <TabsTrigger value="active" className="gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              Active
-              <Badge variant="secondary" className="ml-1 text-[10px] py-0 px-1.5">
-                {activeProjects.length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="completed" className="gap-2">
-              <span className="w-2 h-2 rounded-full bg-blue-500" />
-              Completed
-              <Badge variant="secondary" className="ml-1 text-[10px] py-0 px-1.5">
-                {completedProjects.length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="all" className="gap-2">
-              All Projects
-            </TabsTrigger>
+              <TabsTrigger value="active" className="gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                Active
+                <Badge variant="secondary" className="ml-1 text-[10px] py-0 px-1.5">
+                  {activeProjects.length}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="completed" className="gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-500" />
+                Completed
+                <Badge variant="secondary" className="ml-1 text-[10px] py-0 px-1.5">
+                  {completedProjects.length}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="all" className="gap-2">
+                All Projects
+              </TabsTrigger>
             </TabsList>
+            <div className="relative w-full lg:max-w-sm">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search projects..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-11 h-11 rounded-full bg-muted/40 border border-border/60 focus-visible:ring-2 focus-visible:ring-primary/30"
+              />
+            </div>
           </div>
 
           <TabsContent value="active">

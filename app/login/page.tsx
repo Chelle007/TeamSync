@@ -6,7 +6,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Zap, ArrowLeft, Loader2, Github, Chrome, Mail, Lock } from "lucide-react"
+import { ArrowLeft, Loader2, Github, Chrome, Mail, Lock } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { toast } from "sonner"
 
@@ -151,7 +151,7 @@ function LoginForm() {
         {/* Logo */}
         <div className="flex items-center justify-center gap-2">
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-md">
-            <Zap className="h-5 w-5 text-primary-foreground" />
+            <img src="/logo.png" alt="TeamSync" className="h-13 w-13" />
           </div>
           <span className="text-2xl font-bold tracking-tight">TeamSync</span>
         </div>
