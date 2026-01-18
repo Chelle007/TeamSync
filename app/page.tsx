@@ -475,7 +475,7 @@ export default function ProjectsDashboard() {
               name: project.name,
               description: project.summary || undefined,
               githubRepo: project.github_url || undefined,
-              thumbnail: null,
+              thumbnail: project.thumbnail_url || null,
               progress: project.progress || 0,
               status: project.status,
               updatesCount: count || 0,
