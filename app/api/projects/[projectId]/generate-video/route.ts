@@ -187,14 +187,19 @@ export async function POST(
     }
 
     // Step 7: Store update in database
+    // Use Supabase URLs if available, otherwise fallback to local paths
+    const finalVideoUrl = combineData.videoUrl || combineData.finalVideoPath
     console.log('💾 Step 7: Storing update in database...')
+    console.log(`   Video URL: ${finalVideoUrl}`)
+    console.log(`   Doc URL: ${docUrl}`)
+    
     const { data: update, error: updateError } = await supabase
       .from('updates')
       .insert({
         project_id: projectId,
         webhook_event_id: webhookEventId,
         title: webhookEvent.pr_title,
-        video_url: combineData.finalVideoPath,
+        video_url: finalVideoUrl,
         doc_url: docUrl,
         summary: analysisData.script,
         status: 'completed',

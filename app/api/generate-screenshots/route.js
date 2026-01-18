@@ -1,6 +1,7 @@
 import puppeteer from 'puppeteer';
 import fs from 'fs';
 import path from 'path';
+import { uploadScreenshot } from '@/lib/storage';
 
 export async function POST(request) {
   let browser;
@@ -54,16 +55,23 @@ export async function POST(request) {
       const filepath = path.join(screenshotsDir, filename);
       await page.screenshot({ path: filepath, fullPage: false });
 
+      // Upload to Supabase Storage
+      console.log(`☁️ Uploading screenshot ${filename} to Supabase...`);
+      const screenshotUrl = await uploadScreenshot(filepath, reportKey || 'default', filename);
+
+      // NOTE: Don't delete local files here - they may be needed by PDF generation
+
       screenshots.push({
         index: i,
         title: change.title,
         description: change.description || '',
         path: `/screenshots/${reportKey || 'default'}/${filename}`,
+        screenshotUrl: screenshotUrl || `/screenshots/${reportKey || 'default'}/${filename}`, // Supabase URL or fallback
         filepath,
         duration: change.duration_seconds,
       });
 
-      console.log(`Screenshot saved: ${filename}`);
+      console.log(`✅ Screenshot saved: ${filename}${screenshotUrl ? ' (uploaded to Supabase)' : ''}`);
     }
 
     await browser.close();
