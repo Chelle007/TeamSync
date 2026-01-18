@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { 
-  Zap, 
   ArrowLeft,
   FileText,
   Upload,
@@ -370,7 +369,7 @@ export default function ProjectSummaryPage() {
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-md">
-              <Zap className="h-5 w-5 text-primary-foreground" />
+              <img src="/logo.png" alt="TeamSync" className="h-13 w-13" />
             </div>
             <span className="text-xl font-bold tracking-tight">TeamSync</span>
           </Link>

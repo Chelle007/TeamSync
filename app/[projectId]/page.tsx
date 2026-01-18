@@ -19,7 +19,6 @@ import { UpdatesTab } from "./components/UpdatesTab"
 import { AssistantTab } from "./components/AssistantTab"
 import { SettingsTab } from "./components/SettingsTab"
 import {
-  Zap,
   Video,
   MessageSquare,
   Bell,
@@ -631,7 +630,7 @@ export default function ReviewerPortal() {
         <div className="p-6 space-y-8">
           <Link href="/" className="flex items-center gap-2 group">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary via-primary to-primary/80 flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105">
-              <Zap className="h-5 w-5 text-primary-foreground" />
+              <img src="/logo.png" alt="TeamSync" className="h-13 w-13" />
             </div>
             <span className="text-xl font-bold tracking-tight">
               TeamSync
