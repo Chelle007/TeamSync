@@ -79,7 +79,11 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 OPENAI_API_KEY=your_openai_api_key
 
 # App URL
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
+NEXT_PUBLIC_SITE_URL=your_public_site_url
+
+# Google Services for Report generation
+GOOGLE_SERVICE_ACCOUNT_EMAIL=your_google_service_account_email
+GOOGLE_PRIVATE_KEY=your_google_private_key
 ```
 
 ### Database Setup
