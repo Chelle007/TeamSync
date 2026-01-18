@@ -1,14 +1,13 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
+import { useEffect, useState, useRef, type ReactNode } from "react"
 import { TabsContent } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
-import { Eye, MessageSquare, Pencil, Send, Sparkles } from "lucide-react"
+import { Eye, Loader2, MessageSquare, Pencil, Send, Sparkles, Trash2 } from "lucide-react"
 import type { Update } from "@/types/database"
 
 // ============================================================================
@@ -32,28 +31,38 @@ type ChatMessage = {
   role: "user" | "assistant"
   content: string
   timestamp: string
-  actions?: "escalate" | "none"
+  actions?: "escalate" | "clarify" | "none"
   pendingQuestion?: string
   pendingReason?: string
+  needsClarification?: boolean
+  otherSide?: "developer" | "reviewer"
 }
 
-type IncomingRequest = {
+type Clarification = {
   id: string
-  from: "Reviewer"
   question: string
   refinedQuestion?: string
   reason: string
   createdAt: string
-  status: "new" | "in_progress" | "replied"
+  status: "new" | "in_progress" | "replied" | "draft" | "waiting_for_developer" | "answered"
   developerDraft?: string
   developerReply?: string
+  askedBy: string
+  askedByRole: "developer" | "reviewer"
+  askedToRole: "developer" | "reviewer"
+  isAsker: boolean
+  isTarget: boolean
+  canReply: boolean
 }
 
-type DevChatMessage = {
+type DraftClarification = {
   id: string
-  role: "developer" | "assistant" | "system"
-  content: string
-  timestamp: string
+  question: string
+  refinedQuestion?: string
+  reason: string
+  createdAt: string
+  status: "draft"
+  askedToRole: "developer" | "reviewer"
 }
 
 type AssistantTabProps = {
@@ -73,891 +82,592 @@ type AssistantTabProps = {
 }
 
 // ============================================================================
-// Constants
+// Constants & Helpers
 // ============================================================================
 
-const ESCALATION_KEYWORDS = [
-  "fastest way",
-  "timeline",
-  "estimate",
-  "how long",
-  "architecture",
-] as const
+const ESCALATION_KEYWORDS = ["fastest way", "timeline", "estimate", "how long", "architecture"]
 
-const STATUS_STYLES = {
-  draft: "bg-amber-500/10 text-amber-400 border border-amber-500/30",
-  waiting_for_developer: "bg-blue-500/10 text-blue-400 border border-blue-500/30",
-  answered: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30",
+const STATUS_CONFIG = {
+  draft: { label: "Draft", style: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800" },
+  waiting_for_developer: { label: "Waiting for Developer", style: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800" },
+  waiting_for_reviewer: { label: "Waiting for Reviewer", style: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800" },
+  answered: { label: "Answered", style: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800" },
 } as const
 
-const DEV_STATUS_STYLES = {
-  new: "bg-amber-500/10 text-amber-400 border border-amber-500/30",
-  in_progress: "bg-blue-500/10 text-blue-400 border border-blue-500/30",
-  replied: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30",
-} as const
-
-// ============================================================================
-// API Functions
-// ============================================================================
-
-async function sendToDeveloperAPI(_pendingItem: PendingItem): Promise<void> {
-  return Promise.resolve()
+const formatTimestamp = (iso: string): string => {
+  const d = new Date(iso)
+  const now = new Date()
+  const diff = now.getTime() - d.getTime()
+  if (diff < 60_000) return "Just now"
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (d.toDateString() === yesterday.toDateString()) return "Yesterday, " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+  return d.toLocaleDateString([], { month: "short", day: "numeric" }) + ", " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
 }
 
-async function sendDeveloperReplyAPI(_requestId: string, _replyText: string): Promise<void> {
-  return Promise.resolve()
+const getStatusKey = (status: string, isDev: boolean): keyof typeof STATUS_CONFIG => {
+  if (status === "draft") return "draft"
+  if (status === "answered" || status === "replied") return "answered"
+  return isDev ? "waiting_for_reviewer" : "waiting_for_developer"
 }
 
 // ============================================================================
-// Helper Components
+// Reusable Components
 // ============================================================================
 
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string
-  onClose: () => void
-  children: ReactNode
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 animate-in fade-in-0">
-      <div className="w-full max-w-lg rounded-2xl border border-border/50 bg-card/95 backdrop-blur-xl p-6 shadow-lg animate-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between mb-6 pb-4 border-b">
-          <h4 className="text-lg font-semibold">{title}</h4>
-          <Button size="sm" variant="ghost" onClick={onClose} className="h-8 w-8 p-0">
-            ✕
-          </Button>
-        </div>
-        {children}
+const Modal = ({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 animate-in fade-in-0">
+    <div className="w-full max-w-lg rounded-2xl border border-border/40 bg-gradient-to-br from-card/98 to-card/95 backdrop-blur-xl p-6 shadow-2xl animate-in zoom-in-95">
+      <div className="flex items-center justify-between mb-6 pb-4 border-b border-border/30">
+        <h4 className="text-lg font-semibold">{title}</h4>
+        <Button size="sm" variant="ghost" onClick={onClose} className="size-8 p-0 hover:bg-muted/60">✕</Button>
       </div>
+      {children}
     </div>
-  )
+  </div>
+)
+
+const StatusBadge = ({ status, isDev = false }: { status: string; isDev?: boolean }) => {
+  const key = getStatusKey(status, isDev)
+  const { label, style } = STATUS_CONFIG[key]
+  // Updated: Added inline-flex and items-center for better vertical alignment
+  return <span className={cn("inline-flex items-center text-[11px] font-medium px-2.5 py-1 rounded-md border whitespace-nowrap", style)}>{label}</span>
 }
 
-function StatusBadge({
-  status,
-  statusType = "reviewer",
-}: {
+const MarkdownContent = ({ content }: { content: string }) => {
+  const parts: (string | { bold: string })[] = []
+  const re = /\*\*(.+?)\*\*/g
+  let lastEnd = 0, m
+  while ((m = re.exec(content)) !== null) {
+    if (m.index > lastEnd) parts.push(content.slice(lastEnd, m.index))
+    parts.push({ bold: m[1] })
+    lastEnd = re.lastIndex
+  }
+  if (lastEnd < content.length) parts.push(content.slice(lastEnd))
+  return <span className="whitespace-pre-wrap">{parts.map((p, i) => typeof p === "string" ? p : <strong key={i}>{p.bold}</strong>)}</span>
+}
+
+const EmptyState = ({ icon: Icon, title, subtitle }: { icon: typeof MessageSquare; title: string; subtitle: string }) => (
+  <div className="flex flex-col items-center justify-center h-full py-12 text-center">
+    <div className="size-16 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4">
+      <Icon className="size-8 text-slate-400 dark:text-slate-500" />
+    </div>
+    <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">{title}</p>
+    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{subtitle}</p>
+  </div>
+)
+
+const CardActions = ({ children }: { children: ReactNode }) => (
+  <div className="flex items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">{children}</div>
+)
+
+const IconBtn = ({ icon: Icon, onClick, variant = "default", label }: { icon: typeof Eye; onClick: () => void; variant?: "default" | "danger"; label: string }) => (
+  <Button
+    size="icon"
+    variant="ghost"
+    className={cn("size-10 rounded-lg transition-colors", variant === "danger" ? "hover:bg-red-50 dark:hover:bg-red-950/30" : "hover:bg-slate-100 dark:hover:bg-slate-800")}
+    onClick={onClick}
+    aria-label={label}
+  >
+    <Icon className={cn("size-4 text-slate-500", variant === "danger" && "hover:text-red-500")} />
+  </Button>
+)
+
+const ClarificationCard = ({ question, reason, status, isDev, meta, actions }: {
+  question: string
+  reason: string
   status: string
-  statusType?: "reviewer" | "developer"
-}) {
-  const styles = statusType === "developer" ? DEV_STATUS_STYLES : STATUS_STYLES
-  const label =
-    statusType === "developer"
-      ? status === "new"
-        ? "New"
-        : status === "in_progress"
-        ? "In Progress"
-        : "Replied"
-      : status === "draft"
-      ? "Draft"
-      : status === "waiting_for_developer"
-      ? "Waiting for Developer"
-      : "Answered"
+  isDev: boolean
+  meta?: ReactNode
+  actions: ReactNode
+}) => (
+  <div className="rounded-2xl border border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-md transition-all p-5 space-y-3 dark:bg-slate-900 dark:border-slate-700/80 dark:hover:border-slate-600">
+    <div className="space-y-3">
+      {/* Updated: Nested div to group Badge and Question closer together */}
+      <div className="space-y-1.5">
+        <StatusBadge status={status} isDev={isDev} />
+        <p className="text-[15px] font-semibold leading-relaxed text-slate-900 dark:text-slate-100">{question}</p>
+      </div>
+      <p className="text-sm text-slate-500 leading-relaxed dark:text-slate-400">{reason}</p>
+      {meta}
+    </div>
+    <CardActions>{actions}</CardActions>
+  </div>
+)
 
-  return (
-    <span
-      className={cn(
-        "text-[10px] font-medium uppercase tracking-wide px-2.5 py-1 rounded-full whitespace-nowrap",
-        styles[status as keyof typeof styles]
+const ChatBubble = ({ message, onAction }: { message: ChatMessage; onAction?: (send: boolean, msg: ChatMessage) => void }) => (
+  <div className={cn("flex animate-in fade-in-0 slide-in-from-bottom-2", message.role === "user" ? "justify-end" : "justify-start")}>
+    <div className={cn(
+      "max-w-[80%] rounded-2xl px-4 py-3 text-sm space-y-2 shadow-sm",
+      message.role === "user"
+        ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground rounded-br-sm shadow-md shadow-primary/20"
+        : "bg-gradient-to-br from-muted/70 to-muted/50 border border-border/40 rounded-bl-sm"
+    )}>
+      <p className="leading-relaxed">{message.role === "assistant" ? <MarkdownContent content={message.content} /> : message.content}</p>
+      {onAction && (message.actions === "escalate" || message.actions === "clarify") && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Button size="sm" className="h-7 text-xs font-medium" onClick={() => onAction(true, message)}>
+            {message.actions === "clarify" ? `Yes, ask ${message.otherSide}` : "Yes, send"}
+          </Button>
+          <Button size="sm" variant="outline" className="h-7 text-xs font-medium" onClick={() => onAction(false, message)}>No</Button>
+        </div>
       )}
-    >
-      {label}
-    </span>
-  )
-}
+      <span className="text-[10px] opacity-70 block">{message.timestamp}</span>
+    </div>
+  </div>
+)
+
+const ChatInput = ({ value, onChange, onSend, isLoading, placeholder }: {
+  value: string
+  onChange: (v: string) => void
+  onSend: () => void
+  isLoading: boolean
+  placeholder: string
+}) => (
+  <div className="border-t pt-4 shrink-0">
+    <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-gradient-to-br from-background/80 to-background/60 backdrop-blur-sm px-3.5 py-3 shadow-sm focus-within:ring-2 focus-within:ring-primary/30 transition-all">
+      <MessageSquare className="size-4 text-muted-foreground/70 shrink-0" />
+      <Input
+        className="border-0 bg-transparent focus-visible:ring-0 placeholder:text-muted-foreground/60 text-sm"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), onSend())}
+        disabled={isLoading}
+      />
+      <Button size="sm" onClick={onSend} disabled={isLoading || !value.trim()} className="size-8 p-0 shrink-0 shadow-sm hover:shadow">
+        <Send className="size-4" />
+      </Button>
+    </div>
+  </div>
+)
 
 // ============================================================================
 // Main Component
 // ============================================================================
 
-export function AssistantTab({ isDeveloperView }: AssistantTabProps) {
-  const [pendingItems, setPendingItems] = useState<PendingItem[]>([
-    {
-      id: "pending-1",
-      question: "Can you share the updated deployment timeline?",
-      createdAt: "Today, 9:20 AM",
-      status: "draft",
-      reason: "Timeline questions require developer confirmation.",
-      originalQuestion: "Can you share the updated deployment timeline?",
-      askedBy: "Reviewer",
-    },
-    {
-      id: "pending-2",
-      question: "What is the fastest way to ship the MVP?",
-      createdAt: "Yesterday, 4:10 PM",
-      status: "draft",
-      reason: "This needs product/engineering input.",
-      originalQuestion: "What is the fastest way to ship the MVP?",
-      askedBy: "Reviewer",
-    },
-    {
-      id: "pending-3",
-      question: "Do we have an updated architecture diagram for payments?",
-      createdAt: "Yesterday, 2:34 PM",
-      status: "waiting_for_developer",
-      reason: "Architecture questions require developer confirmation.",
-      originalQuestion: "Do we have an updated architecture diagram for payments?",
-      askedBy: "Reviewer",
-    },
-    {
-      id: "pending-4",
-      question: "Which metrics are included in the new onboarding funnel?",
-      createdAt: "Mon, 11:45 AM",
-      status: "answered",
-      reason: "Needs product input for exact metrics list.",
-      originalQuestion: "Which metrics are included in the new onboarding funnel?",
-      askedBy: "Reviewer",
-      developerReply:
-        "(Dummy reply) We track activation, completion rate, time-to-first-action, and drop-off points.",
-    },
-  ])
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "assistant-1",
-      role: "assistant",
-      content: "Hi! I can summarize project updates or answer questions based on the latest docs.",
-      timestamp: "9:00 AM",
-    },
-    {
-      id: "user-1",
-      role: "user",
-      content: "What changed in the last update?",
-      timestamp: "9:01 AM",
-    },
-    {
-      id: "assistant-2",
-      role: "assistant",
-      content:
-        "The latest update covered performance improvements, a billing dashboard refresh, and mobile navigation fixes.",
-      timestamp: "9:01 AM",
-    },
-    {
-      id: "user-2",
-      role: "user",
-      content: "How long will the review cycle take?",
-      timestamp: "9:02 AM",
-    },
-    {
-      id: "assistant-3",
-      role: "assistant",
-      content:
-        "That question needs developer input and isn’t documented yet. Do you want to send it to Pending Review?",
-      timestamp: "9:02 AM",
-      actions: "escalate",
-      pendingQuestion: "How long will the review cycle take?",
-      pendingReason: "Timeline/estimate requires developer confirmation.",
-    },
-  ])
+export function AssistantTab({ isDeveloperView, projectId }: AssistantTabProps) {
+  const [pendingItems, setPendingItems] = useState<PendingItem[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true)
   const [inputValue, setInputValue] = useState("")
-  const [selectedViewItem, setSelectedViewItem] = useState<PendingItem | null>(null)
-  const [selectedRefineItem, setSelectedRefineItem] = useState<PendingItem | null>(null)
-  const [refineText, setRefineText] = useState("")
-  const [confirmItem, setConfirmItem] = useState<PendingItem | null>(null)
-  const [confirmStep, setConfirmStep] = useState<1 | 2>(1)
+  const [clarifications, setClarifications] = useState<Clarification[]>([])
+  const [draftClarifications, setDraftClarifications] = useState<DraftClarification[]>([])
+  const [isLoadingClarifications, setIsLoadingClarifications] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isRewriting, setIsRewriting] = useState(false)
+  
+  // Modal states
+  const [viewModal, setViewModal] = useState<{ type: "pending" | "draft" | "clarification"; item: PendingItem | DraftClarification | Clarification } | null>(null)
+  const [refineModal, setRefineModal] = useState<{ type: "pending" | "draft"; item: PendingItem | DraftClarification; text: string } | null>(null)
+  const [replyModal, setReplyModal] = useState<{ item: Clarification; text: string; original: string } | null>(null)
+  const [confirmModal, setConfirmModal] = useState<{ item: PendingItem; step: 1 | 2 } | null>(null)
+  
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const [incomingRequests, setIncomingRequests] = useState<IncomingRequest[]>([
-    {
-      id: "incoming-1",
-      from: "Reviewer",
-      question: "Can you share the updated deployment timeline?",
-      reason: "Timeline not in docs; needs developer confirmation.",
-      createdAt: "Today, 10:15 AM",
-      status: "new",
-    },
-    {
-      id: "incoming-2",
-      from: "Reviewer",
-      question: "What is the fastest way to ship the MVP?",
-      reason: "Needs engineering input on scope and sequencing.",
-      createdAt: "Yesterday, 5:05 PM",
-      status: "in_progress",
-      developerDraft: "We can ship the MVP by reusing the existing components and limiting scope to core flows.",
-    },
-  ])
-  const [devMessages, setDevMessages] = useState<DevChatMessage[]>([
-    {
-      id: "dev-assistant-1",
-      role: "assistant",
-      content: "Hi! I can help you draft responses to reviewer requests.",
-      timestamp: "9:10 AM",
-    },
-  ])
-  const [devInputValue, setDevInputValue] = useState("")
-  const [selectedDevView, setSelectedDevView] = useState<IncomingRequest | null>(null)
-  const [selectedDevReply, setSelectedDevReply] = useState<IncomingRequest | null>(null)
-  const [devReplyText, setDevReplyText] = useState("")
-  const [sentReplies, setSentReplies] = useState<string[]>([])
-  const [replyStatus, setReplyStatus] = useState<string | null>(null)
+  // Load chat history
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setIsHistoryLoading(true)
+      try {
+        const res = await fetch(`/api/projects/${projectId}/assistant`)
+        const data = await res.json()
+        if (cancelled || !res.ok) return
+        setMessages((data.messages || []).map((m: { id: string; role: string; content: string; created_at: string }) => ({
+          id: m.id, role: m.role as "user" | "assistant", content: m.content, timestamp: formatTimestamp(m.created_at)
+        })))
+      } finally { if (!cancelled) setIsHistoryLoading(false) }
+    })()
+    return () => { cancelled = true }
+  }, [projectId])
 
-  // ============================================================================
-  // Handlers - Reviewer View
-  // ============================================================================
+  // Load clarifications
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setIsLoadingClarifications(true)
+      try {
+        const res = await fetch(`/api/projects/${projectId}/clarifications`)
+        const data = await res.json()
+        if (cancelled || !res.ok) return
+        setClarifications(data.clarifications || [])
+      } finally { if (!cancelled) setIsLoadingClarifications(false) }
+    })()
+    return () => { cancelled = true }
+  }, [projectId])
 
-  const addMessage = (message: ChatMessage) => {
-    setMessages((prev) => [...prev, message])
-  }
+  // Auto-scroll
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }) }, [messages])
 
-  const handleSend = () => {
+  const addMessage = (msg: ChatMessage) => setMessages(prev => [...prev, msg])
+
+  // Handle sending messages
+  const handleSend = async () => {
     const trimmed = inputValue.trim()
-    if (!trimmed) return
+    if (!trimmed || isLoading) return
 
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: trimmed,
-      timestamp: "Just now",
-    }
-    addMessage(userMessage)
+    addMessage({ id: `user-${Date.now()}`, role: "user", content: trimmed, timestamp: "Just now" })
     setInputValue("")
 
-    const lower = trimmed.toLowerCase()
-    const needsEscalation = ESCALATION_KEYWORDS.some((keyword) => lower.includes(keyword))
-    if (needsEscalation) {
+    // Check for escalation keywords (reviewer only)
+    if (!isDeveloperView && ESCALATION_KEYWORDS.some(k => trimmed.toLowerCase().includes(k))) {
       addMessage({
-        id: `assistant-${Date.now() + 1}`,
-        role: "assistant",
-        content:
-          "This looks like it needs developer input and isn’t documented yet. Do you want to send this to Pending Review?",
-        timestamp: "Just now",
-        actions: "escalate",
-        pendingQuestion: trimmed,
-        pendingReason: "Requires developer input / not in available docs.",
+        id: `assistant-${Date.now()}`, role: "assistant", timestamp: "Just now",
+        content: "This looks like it needs developer input and isn't documented yet. Do you want to send this to Pending Review?",
+        actions: "escalate", pendingQuestion: trimmed, pendingReason: "Requires developer input / not in available docs."
       })
       return
     }
 
-    addMessage({
-      id: `assistant-${Date.now() + 2}`,
-      role: "assistant",
-      content:
-        "Here’s a quick summary: the latest update focused on polishing UX, performance improvements, and preparing the next review package.",
-      timestamp: "Just now",
-    })
+    setIsLoading(true)
+    try {
+      const res = await fetch(`/api/projects/${projectId}/assistant`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: trimmed })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to get response")
+
+      const noContext = !data.hasContext || /don't have|do not have|don't know|not available|no information|cannot find/i.test(data.content || "")
+      
+      if (noContext && data.otherSide) {
+        addMessage({
+          id: `assistant-${Date.now()}`, role: "assistant", timestamp: "Just now",
+          content: `I don't have this information, would you like to ask the ${data.otherSide}?`,
+          actions: "clarify", pendingQuestion: trimmed, pendingReason: "AI assistant doesn't have this information.", needsClarification: true, otherSide: data.otherSide
+        })
+      } else {
+        addMessage({ id: `assistant-${Date.now()}`, role: "assistant", content: data.content ?? "I couldn't generate a response.", timestamp: "Just now" })
+      }
+    } catch (err) {
+      addMessage({ id: `assistant-${Date.now()}`, role: "assistant", content: err instanceof Error ? err.message : "Something went wrong.", timestamp: "Just now" })
+    } finally { setIsLoading(false) }
   }
 
-  const handleEscalationDecision = (send: boolean, message: ChatMessage) => {
+  // Handle action decisions
+  const handleAction = async (send: boolean, message: ChatMessage) => {
     if (!send) {
-      addMessage({
-        id: `assistant-${Date.now() + 3}`,
-        role: "assistant",
-        content: "Okay — ask another question or add more context.",
-        timestamp: "Just now",
-      })
+      addMessage({ id: `assistant-${Date.now()}`, role: "assistant", content: "Okay — ask another question or add more context.", timestamp: "Just now" })
       return
     }
 
-    const newItem: PendingItem = {
-      id: `pending-${Date.now()}`,
-      question: message.pendingQuestion || "New question",
-      createdAt: "Just now",
-      status: "draft",
-      reason: message.pendingReason || "Needs developer input.",
-      originalQuestion: message.pendingQuestion || "New question",
-      askedBy: "Reviewer",
-    }
-    setPendingItems((prev) => [newItem, ...prev])
-    addMessage({
-      id: `assistant-${Date.now() + 4}`,
-      role: "assistant",
-      content:
-        "Added to Pending Review. You can refine it before sending to the developer.",
-      timestamp: "Just now",
-    })
-  }
-
-  const handleRefineOpen = (item: PendingItem) => {
-    setSelectedRefineItem(item)
-    setRefineText(item.refinedQuestion || item.originalQuestion)
-  }
-
-  const handleRefineApply = () => {
-    if (!selectedRefineItem) return
-    setPendingItems((prev) =>
-      prev.map((item) =>
-        item.id === selectedRefineItem.id
-          ? { ...item, refinedQuestion: refineText.trim() }
-          : item
-      )
-    )
-    setSelectedRefineItem(null)
-  }
-
-  const handleSendToDeveloper = async (item: PendingItem) => {
-    setPendingItems((prev) =>
-      prev.map((entry) =>
-        entry.id === item.id ? { ...entry, status: "waiting_for_developer" } : entry
-      )
-    )
-    await sendToDeveloperAPI(item)
-    setTimeout(() => {
-      setPendingItems((prev) =>
-        prev.map((entry) =>
-          entry.id === item.id
-            ? {
-                ...entry,
-                status: "answered",
-                developerReply:
-                  "(Dummy reply) Fastest approach is to reuse existing components and ship an MVP first. We can iterate on design polish after launch.",
-              }
-            : entry
-        )
-      )
-    }, 2300)
-  }
-
-  // ============================================================================
-  // Handlers - Developer View
-  // ============================================================================
-
-  const handleDevSend = () => {
-    const trimmed = devInputValue.trim()
-    if (!trimmed) return
-
-    const devMessage: DevChatMessage = {
-      id: `dev-${Date.now()}`,
-      role: "developer",
-      content: trimmed,
-      timestamp: "Just now",
-    }
-    setDevMessages((prev) => [...prev, devMessage])
-    setDevInputValue("")
-
-    const lower = trimmed.toLowerCase()
-    if (lower.includes("reply") || lower.includes("timeline") || lower.includes("fastest")) {
-      setDevMessages((prev) => [
-        ...prev,
-        {
-          id: `dev-assistant-${Date.now()}`,
-          role: "assistant",
-          content:
-            "Suggested reply: We can share a revised timeline after confirming scope; fastest path is shipping core flows first and iterating weekly.",
-          timestamp: "Just now",
-        },
-      ])
+    if (message.actions === "escalate") {
+      setPendingItems(prev => [{ id: `pending-${Date.now()}`, question: message.pendingQuestion!, createdAt: "Just now", status: "draft", reason: message.pendingReason!, originalQuestion: message.pendingQuestion!, askedBy: "Reviewer" }, ...prev])
+      addMessage({ id: `assistant-${Date.now()}`, role: "assistant", content: "Added to Pending Review. You can refine it before sending to the developer.", timestamp: "Just now" })
+    } else if (message.actions === "clarify" && message.pendingQuestion && message.otherSide) {
+      setDraftClarifications(prev => [{ id: `draft-${Date.now()}`, question: message.pendingQuestion!, reason: message.pendingReason!, createdAt: "Just now", status: "draft", askedToRole: message.otherSide! }, ...prev])
+      addMessage({ id: `assistant-${Date.now()}`, role: "assistant", content: `Added to **Clarification** as draft. You can refine it before sending to the ${message.otherSide}.`, timestamp: "Just now" })
     }
   }
 
-  const handleReplyOpen = (request: IncomingRequest) => {
-    if (request.status === "new") {
-      setIncomingRequests((prev) =>
-        prev.map((item) =>
-          item.id === request.id ? { ...item, status: "in_progress" } : item
-        )
-      )
+  // Draft clarification handlers
+  const handleSendDraft = async (draft: DraftClarification) => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/clarifications`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: draft.refinedQuestion || draft.question, refinedQuestion: draft.refinedQuestion, reason: draft.reason })
+      })
+      if (!res.ok) throw new Error((await res.json()).error || "Failed")
+      setDraftClarifications(prev => prev.filter(d => d.id !== draft.id))
+      const updated = await fetch(`/api/projects/${projectId}/clarifications`)
+      if (updated.ok) setClarifications((await updated.json()).clarifications || [])
+      addMessage({ id: `assistant-${Date.now()}`, role: "assistant", content: `Clarification sent to ${draft.askedToRole}.`, timestamp: "Just now" })
+    } catch (err) {
+      addMessage({ id: `assistant-${Date.now()}`, role: "assistant", content: err instanceof Error ? err.message : "Failed to send.", timestamp: "Just now" })
     }
-    setSelectedDevReply(request)
-    setDevReplyText(request.developerDraft || "")
-    setReplyStatus(null)
+  }
+
+  // Reply handlers
+  const handleReplyOpen = async (c: Clarification) => {
+    if (c.status === "new") {
+      try {
+        await fetch(`/api/projects/${projectId}/clarifications`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clarificationId: c.id, status: "in_progress" }) })
+        setClarifications(prev => prev.map(item => item.id === c.id ? { ...item, status: "in_progress" } : item))
+      } catch {}
+    }
+    setReplyModal({ item: c, text: c.developerDraft || "", original: "" })
   }
 
   const handleSendReply = async () => {
-    if (!selectedDevReply) return
-    const replyText = devReplyText.trim()
-    if (!replyText) return
-
-    await sendDeveloperReplyAPI(selectedDevReply.id, replyText)
-    setIncomingRequests((prev) =>
-      prev.map((item) =>
-        item.id === selectedDevReply.id
-          ? { ...item, status: "replied", developerReply: replyText }
-          : item
-      )
-    )
-    setSentReplies((prev) => [replyText, ...prev])
-    setReplyStatus("Reply sent")
-    setSelectedDevReply(null)
+    if (!replyModal?.text.trim()) return
+    try {
+      const res = await fetch(`/api/projects/${projectId}/clarifications`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clarificationId: replyModal.item.id, status: "replied", developerReply: replyModal.text })
+      })
+      if (!res.ok) throw new Error((await res.json()).error || "Failed")
+      setClarifications(prev => prev.map(item => item.id === replyModal.item.id ? { ...item, status: "replied", developerReply: replyModal.text } : item))
+      setReplyModal(null)
+    } catch (err) { console.error(err) }
   }
 
-  if (isDeveloperView) {
-    return (
-      <TabsContent value="assistant" className="mt-8">
-        <div className="grid xl:grid-cols-[1fr_1.8fr] gap-6">
-          <Card className="border border-border/50 bg-card/95 backdrop-blur-sm">
-            <CardContent className="p-6 space-y-6 h-[calc(100vh-12rem)] flex flex-col overflow-hidden">
-              <div className="flex items-center justify-between pb-4 border-b flex-shrink-0">
-                <div className="space-y-1.5">
-                  <h3 className="text-lg font-semibold tracking-tight">Incoming Requests</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Reviewer questions that need your response.
-                  </p>
-                </div>
-                <Badge variant="secondary" className="text-xs font-medium h-6 px-2.5">
-                  {incomingRequests.length}
-                </Badge>
-              </div>
-
-              <div className="space-y-3 flex-1 overflow-y-auto pr-2 min-h-0">
-                {incomingRequests.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full py-12 text-center">
-                    <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
-                      <MessageSquare className="h-8 w-8 text-muted-foreground/50" />
-                    </div>
-                    <p className="text-sm font-medium text-muted-foreground">No incoming requests</p>
-                    <p className="text-xs text-muted-foreground/70 mt-1">All caught up!</p>
-                  </div>
-                ) : (
-                  incomingRequests.map((request) => (
-                    <div
-                      key={request.id}
-                      className="rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 transition-colors p-4 space-y-3 group"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold line-clamp-2 leading-snug">
-                            {request.refinedQuestion || request.question}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-                            {request.reason}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground/70 mt-2 flex items-center gap-1.5">
-                            <span>From: {request.from}</span>
-                            <span>•</span>
-                            <span>{request.createdAt}</span>
-                          </p>
-                        </div>
-                        <StatusBadge status={request.status} statusType="developer" />
-                      </div>
-
-                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/30">
-                        <Button
-                          size="sm"
-                          className="flex-1 h-9 font-medium"
-                          disabled={request.status === "replied"}
-                          onClick={() => handleReplyOpen(request)}
-                        >
-                          {request.status === "replied" ? "View Reply" : "Reply"}
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-9 w-9"
-                          onClick={() => setSelectedDevView(request)}
-                          aria-label="View request"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border border-border/50 bg-card/95 backdrop-blur-sm">
-            <CardContent className="p-6 flex flex-col gap-6 h-[calc(100vh-12rem)] overflow-hidden">
-              <div className="flex items-center gap-3 pb-4 border-b flex-shrink-0">
-                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 text-primary flex items-center justify-center">
-                  <Sparkles className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold tracking-tight">AI Assistant</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Draft responses and get suggestions for reviewer replies.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex-1 space-y-3 overflow-y-auto pr-2 min-h-0">
-                {devMessages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={cn(
-                      "flex animate-in fade-in-0 slide-in-from-bottom-2 duration-200",
-                      message.role === "developer" ? "justify-end" : "justify-start"
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        "max-w-[80%] rounded-2xl px-4 py-2.5 text-sm space-y-1.5",
-                        message.role === "developer"
-                          ? "bg-primary text-primary-foreground rounded-br-sm"
-                          : "bg-muted/60 text-foreground border border-border/50 rounded-bl-sm"
-                      )}
-                    >
-                      <p className="leading-relaxed">{message.content}</p>
-                      <span className="text-[10px] opacity-70 block">
-                        {message.timestamp}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="border-t pt-4 space-y-3 flex-shrink-0">
-                <div className="flex items-center gap-2 rounded-xl border border-border/50 bg-background/50 backdrop-blur-sm px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
-                  <MessageSquare className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <Input
-                    className="border-0 bg-transparent focus-visible:ring-0 placeholder:text-muted-foreground/60 text-sm"
-                    placeholder="Ask the AI assistant..."
-                    value={devInputValue}
-                    onChange={(event) => setDevInputValue(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault()
-                        handleDevSend()
-                      }
-                    }}
-                  />
-                  <Button size="sm" onClick={handleDevSend} className="h-8 w-8 p-0 flex-shrink-0">
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {selectedDevView && (
-          <Modal title="Incoming Request" onClose={() => setSelectedDevView(null)}>
-            <div className="space-y-5 text-sm">
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Question</p>
-                <p className="font-medium leading-relaxed text-base">
-                  {selectedDevView.refinedQuestion || selectedDevView.question}
-                </p>
-              </div>
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Reason</p>
-                <p className="leading-relaxed">{selectedDevView.reason}</p>
-              </div>
-              <div className="flex items-center gap-3 pt-2 border-t">
-                <StatusBadge status={selectedDevView.status} statusType="developer" />
-                <span className="text-xs text-muted-foreground">
-                  From {selectedDevView.from} • {selectedDevView.createdAt}
-                </span>
-              </div>
-              {selectedDevView.developerReply && (
-                <div className="rounded-lg border border-border/50 bg-muted/40 p-4">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Reply</p>
-                  <p className="leading-relaxed">{selectedDevView.developerReply}</p>
-                </div>
-              )}
-            </div>
-          </Modal>
-        )}
-
-        {selectedDevReply && (
-          <Modal title="Reply to Reviewer" onClose={() => setSelectedDevReply(null)}>
-            <div className="space-y-5 text-sm">
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Question</p>
-                <p className="font-medium leading-relaxed text-base">
-                  {selectedDevReply.refinedQuestion || selectedDevReply.question}
-                </p>
-              </div>
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Reason</p>
-                <p className="leading-relaxed">{selectedDevReply.reason}</p>
-              </div>
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Your reply</p>
-                <Textarea
-                  value={devReplyText}
-                  onChange={(event) => setDevReplyText(event.target.value)}
-                  className="min-h-[140px] resize-none border-border/50"
-                  placeholder="Type your reply here..."
-                />
-              </div>
-              <div className="flex items-center justify-between gap-3 pt-2 border-t">
-                <Button
-                  variant="outline"
-                  className="h-9"
-                  onClick={() =>
-                    setDevReplyText(
-                      "(Draft) We can share an updated timeline after confirming scope. The fastest route is shipping core flows first, then iterating weekly."
-                    )
-                  }
-                >
-                  Generate Draft
-                </Button>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" className="h-9" onClick={() => setSelectedDevReply(null)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleSendReply} className="h-9">Send Reply</Button>
-                </div>
-              </div>
-              {replyStatus && (
-                <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-2">
-                  <p className="text-xs font-medium text-emerald-400">{replyStatus}</p>
-                </div>
-              )}
-            </div>
-          </Modal>
-        )}
-        {sentReplies.length > 0 && (
-          <div className="sr-only" aria-live="polite">
-            Reply sent
-          </div>
-        )}
-      </TabsContent>
-    )
+  const handleMagicRewrite = () => {
+    if (!replyModal || isRewriting) return
+    setReplyModal({ ...replyModal, original: replyModal.text })
+    setIsRewriting(true)
+    setTimeout(() => {
+      const lower = replyModal.text.toLowerCase()
+      const polished = lower.includes("money") || lower.includes("cost")
+        ? "To accommodate this request, we would need to review the project budget as this falls outside the initial scope."
+        : lower.includes("no") || lower.includes("busy")
+        ? "Unfortunately, I do not have the bandwidth to address this immediately, but I can prioritize it for next week."
+        : "Thank you for the update. I will proceed with this accordingly."
+      setReplyModal(r => r ? { ...r, text: polished } : null)
+      setIsRewriting(false)
+    }, 1500)
   }
+
+  // Get clarifications to display in sidebar (both views show their relevant clarifications)
+  const relevantClarifications = clarifications.filter(c => c.canReply || c.isAsker)
+  const itemCount = draftClarifications.length + relevantClarifications.length + pendingItems.length
 
   return (
     <TabsContent value="assistant" className="mt-8">
       <div className="grid xl:grid-cols-[1fr_1.8fr] gap-6">
-        <Card className="border border-border/50 bg-card/95 backdrop-blur-sm">
+        {/* Sidebar */}
+        <Card className="border border-slate-200/80 bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm dark:bg-slate-900/80 dark:border-slate-700/80">
           <CardContent className="p-6 space-y-6 h-[calc(100vh-12rem)] flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between pb-4 border-b flex-shrink-0">
-              <div className="space-y-1.5">
-                <h3 className="text-lg font-semibold tracking-tight">Pending Review</h3>
-                <p className="text-sm text-muted-foreground">
-                  Questions that need developer input before you can respond.
-                </p>
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
+              <div className="space-y-1">
+                <h3 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Clarification</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Questions from team members that need your response.</p>
               </div>
-              <Badge variant="secondary" className="text-xs font-medium h-6 px-2.5">
-                {pendingItems.length}
-              </Badge>
+              <div className="flex items-center justify-center size-8 rounded-lg bg-slate-100 dark:bg-slate-800 text-sm font-semibold text-slate-600 dark:text-slate-300">{itemCount}</div>
             </div>
 
-            <div className="space-y-3 flex-1 overflow-y-auto pr-2 min-h-0 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
-              {pendingItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full py-12 text-center">
-                  <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
-                    <MessageSquare className="h-8 w-8 text-muted-foreground/50" />
-                  </div>
-                  <p className="text-sm font-medium text-muted-foreground">No pending items</p>
-                  <p className="text-xs text-muted-foreground/70 mt-1">All questions answered!</p>
-                </div>
+            <div className="space-y-3 flex-1 overflow-y-auto pr-2 min-h-0">
+              {isLoadingClarifications ? (
+                <div className="flex items-center justify-center h-full py-12"><Loader2 className="size-6 animate-spin text-primary" /></div>
+              ) : itemCount === 0 ? (
+                <EmptyState icon={MessageSquare} title="No clarifications" subtitle="All caught up!" />
               ) : (
-                pendingItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 transition-colors p-4 space-y-3 group"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold line-clamp-2 leading-snug">
-                          {item.refinedQuestion || item.originalQuestion}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-                          {item.reason}
-                        </p>
-                      </div>
-                      <StatusBadge status={item.status} statusType="reviewer" />
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/30">
-                      <Button
-                        size="sm"
-                        className="flex-1 h-9 font-medium"
-                        disabled={item.status !== "draft"}
-                        onClick={() => {
-                          setConfirmItem(item)
-                          setConfirmStep(1)
-                        }}
-                      >
-                        Send to Developer
-                      </Button>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-9 w-9"
-                          onClick={() => setSelectedViewItem(item)}
-                          aria-label="View pending item"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-9 w-9"
-                          disabled={item.status !== "draft"}
-                          onClick={() => handleRefineOpen(item)}
-                          aria-label="Refine pending item"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))
+                <>
+                  {/* Draft clarifications (local, not yet sent) */}
+                  {draftClarifications.map(draft => (
+                    <ClarificationCard
+                      key={draft.id}
+                      question={draft.refinedQuestion || draft.question}
+                      reason={draft.reason}
+                      status="draft"
+                      isDev={isDeveloperView}
+                      actions={<>
+                        <Button size="sm" className="flex-1 h-10 font-medium bg-teal-600 hover:bg-teal-700 text-white rounded-lg shadow-sm" onClick={() => handleSendDraft(draft)}>Send to {draft.askedToRole === "developer" ? "Developer" : "Reviewer"}</Button>
+                        <IconBtn icon={Eye} onClick={() => setViewModal({ type: "draft", item: draft })} label="View" />
+                        <IconBtn icon={Pencil} onClick={() => setRefineModal({ type: "draft", item: draft, text: draft.refinedQuestion || draft.question })} label="Refine" />
+                        <IconBtn icon={Trash2} onClick={() => setDraftClarifications(prev => prev.filter(d => d.id !== draft.id))} variant="danger" label="Delete" />
+                      </>}
+                    />
+                  ))}
+                  {/* Real clarifications from database */}
+                  {relevantClarifications.map(c => (
+                    <ClarificationCard
+                      key={c.id}
+                      question={c.refinedQuestion || c.question}
+                      reason={c.reason}
+                      status={c.status}
+                      isDev={isDeveloperView}
+                      meta={<div className="flex items-center gap-1.5 text-xs text-slate-400"><span className="font-medium text-slate-600 dark:text-slate-300">{c.askedBy}</span><span>·</span><span>{c.askedByRole}</span><span>·</span><span>{c.createdAt}</span></div>}
+                      actions={<>
+                        {c.canReply ? (
+                          <Button size="sm" className={cn("flex-1 h-10 font-medium rounded-lg shadow-sm", c.status === "replied" ? "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800" : "bg-teal-600 hover:bg-teal-700 text-white")} disabled={c.status === "replied"} onClick={() => handleReplyOpen(c)}>
+                            {c.status === "replied" ? "View Reply" : "Reply"}
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="outline" className={cn("flex-1 h-10 font-medium rounded-lg", c.status === "replied" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-50 text-slate-400 cursor-not-allowed")} disabled={c.status !== "replied"} onClick={() => c.status === "replied" && setViewModal({ type: "clarification", item: c })}>
+                            {c.status === "replied" ? "View Reply" : "Waiting for Reply"}
+                          </Button>
+                        )}
+                        <IconBtn icon={Eye} onClick={() => setViewModal({ type: "clarification", item: c })} label="View" />
+                        <IconBtn icon={Trash2} onClick={async () => {
+                          try { await fetch(`/api/projects/${projectId}/clarifications`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clarificationId: c.id }) }); setClarifications(prev => prev.filter(x => x.id !== c.id)) } catch {}
+                        }} variant="danger" label="Delete" />
+                      </>}
+                    />
+                  ))}
+                  {/* Pending items for escalation (reviewer only) */}
+                  {pendingItems.map(item => (
+                    <ClarificationCard
+                      key={item.id}
+                      question={item.refinedQuestion || item.originalQuestion}
+                      reason={item.reason}
+                      status={item.status}
+                      isDev={isDeveloperView}
+                      actions={<>
+                        <Button size="sm" className={cn("flex-1 h-10 font-medium rounded-lg shadow-sm", item.status === "draft" ? "bg-teal-600 hover:bg-teal-700 text-white" : "bg-slate-100 text-slate-400 cursor-not-allowed")} disabled={item.status !== "draft"} onClick={() => setConfirmModal({ item, step: 1 })}>Send to Developer</Button>
+                        <IconBtn icon={Eye} onClick={() => setViewModal({ type: "pending", item })} label="View" />
+                        <IconBtn icon={Pencil} onClick={() => item.status === "draft" && setRefineModal({ type: "pending", item, text: item.refinedQuestion || item.originalQuestion })} label="Refine" />
+                        <IconBtn icon={Trash2} onClick={() => setPendingItems(prev => prev.filter(p => p.id !== item.id))} variant="danger" label="Delete" />
+                      </>}
+                    />
+                  ))}
+                </>
               )}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border border-border/50 bg-card/95 backdrop-blur-sm">
+        {/* Chat Panel */}
+        <Card className="border border-slate-200/80 bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm dark:bg-slate-900/80 dark:border-slate-700/80">
           <CardContent className="p-6 flex flex-col gap-6 h-[calc(100vh-12rem)] overflow-hidden">
-            <div className="flex items-center gap-3 pb-4 border-b flex-shrink-0">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 text-primary flex items-center justify-center">
-                <Sparkles className="h-5 w-5" />
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="size-10 rounded-xl bg-gradient-to-br from-teal-100 to-teal-50 text-teal-600 flex items-center justify-center dark:from-teal-900/50 dark:to-teal-800/30 dark:text-teal-400">
+                  <Sparkles className="size-5" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">AI Assistant</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{isDeveloperView ? "Draft responses and get suggestions for reviewer replies." : "Ask questions and get quick answers based on project context."}</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-lg font-semibold tracking-tight">AI Assistant</h3>
-                <p className="text-sm text-muted-foreground">
-                  Ask questions and get quick answers based on project context.
-                </p>
-              </div>
+              {messages.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={async () => {
+                    if (confirm("Are you sure you want to clear all chat history?")) {
+                      try {
+                        const res = await fetch(`/api/projects/${projectId}/assistant`, { method: "DELETE" })
+                        if (res.ok) {
+                          setMessages([])
+                        }
+                      } catch (err) {
+                        console.error("Failed to clear messages:", err)
+                      }
+                    }
+                  }}
+                  className="h-8 px-2 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                >
+                  <Trash2 className="size-3.5 mr-1.5" />
+                  Clear
+                </Button>
+              )}
             </div>
 
             <div className="flex-1 space-y-3 overflow-y-auto pr-2 min-h-0">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    "flex animate-in fade-in-0 slide-in-from-bottom-2 duration-200",
-                    message.role === "user" ? "justify-end" : "justify-start"
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "max-w-[80%] rounded-2xl px-4 py-2.5 text-sm space-y-2 shadow-sm",
-                      message.role === "user"
-                        ? "bg-primary text-primary-foreground rounded-br-sm"
-                        : "bg-muted/60 text-foreground border border-border/50 rounded-bl-sm"
-                    )}
-                  >
-                    <p className="leading-relaxed">{message.content}</p>
-                    {message.actions === "escalate" && (
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        <Button
-                          size="sm"
-                          variant="default"
-                          className="h-7 text-xs font-medium"
-                          onClick={() => handleEscalationDecision(true, message)}
-                        >
-                          Yes, send
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs font-medium"
-                          onClick={() => handleEscalationDecision(false, message)}
-                        >
-                          No
-                        </Button>
-                      </div>
-                    )}
-                    <span className="text-[10px] opacity-70 block">
-                      {message.timestamp}
-                    </span>
+              {!isHistoryLoading && messages.length === 0 && (
+                <ChatBubble message={{ id: "welcome", role: "assistant", content: isDeveloperView ? "Hi! I can help you draft responses to reviewer requests." : "Hi! I can answer questions about this project using the summary, scope, related files, and updates. What would you like to know?", timestamp: "AI Assistant" }} />
+              )}
+              {messages.map(msg => <ChatBubble key={msg.id} message={msg} onAction={handleAction} />)}
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="rounded-2xl rounded-bl-sm px-4 py-3 bg-gradient-to-br from-muted/70 to-muted/50 border border-border/40 flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="size-4 animate-spin" />Thinking...
                   </div>
                 </div>
-              ))}
+              )}
+              <div ref={messagesEndRef} />
             </div>
 
-            <div className="border-t pt-4 space-y-3">
-              <div className="flex items-center gap-2 rounded-xl border border-border/50 bg-background/50 backdrop-blur-sm px-3 py-2.5 shadow-sm focus-within:ring-2 focus-within:ring-primary/20 transition-all">
-                <MessageSquare className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                <Input
-                  className="border-0 bg-transparent focus-visible:ring-0 placeholder:text-muted-foreground/60 text-sm"
-                  placeholder="Ask the AI assistant..."
-                  value={inputValue}
-                  onChange={(event) => setInputValue(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault()
-                      handleSend()
-                    }
-                  }}
-                />
-                <Button size="sm" onClick={handleSend} className="h-8 w-8 p-0 flex-shrink-0">
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+            <ChatInput value={inputValue} onChange={setInputValue} onSend={handleSend} isLoading={isLoading} placeholder="Ask the AI assistant..." />
           </CardContent>
         </Card>
       </div>
 
-      {selectedViewItem && (
-        <Modal title="Pending Review Details" onClose={() => setSelectedViewItem(null)}>
+      {/* View Modal */}
+      {viewModal && (
+        <Modal title={viewModal.type === "draft" ? "Draft Clarification" : viewModal.type === "clarification" ? "Clarification" : "Pending Review Details"} onClose={() => setViewModal(null)}>
           <div className="space-y-5 text-sm">
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Question</p>
               <p className="font-medium leading-relaxed text-base">
-                {selectedViewItem.refinedQuestion || selectedViewItem.originalQuestion}
+                {viewModal.type === "pending" ? ((viewModal.item as PendingItem).refinedQuestion || (viewModal.item as PendingItem).originalQuestion) : ((viewModal.item as DraftClarification | Clarification).refinedQuestion || viewModal.item.question)}
               </p>
             </div>
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Reason</p>
-              <p className="leading-relaxed">{selectedViewItem.reason}</p>
+              <p className="leading-relaxed">{viewModal.item.reason}</p>
             </div>
             <div className="flex items-center gap-3 pt-2 border-t">
-              <StatusBadge status={selectedViewItem.status} statusType="reviewer" />
+              <StatusBadge status={viewModal.item.status} isDev={isDeveloperView} />
               <span className="text-xs text-muted-foreground">
-                Created {selectedViewItem.createdAt}
+                {viewModal.type === "draft" ? `To: ${(viewModal.item as DraftClarification).askedToRole} • ` : ""}
+                {viewModal.item.createdAt}
               </span>
             </div>
-            {selectedViewItem.developerReply && (
+            {viewModal.type === "clarification" && (viewModal.item as Clarification).developerReply && (
+              <div className="rounded-lg border border-border/50 bg-muted/40 p-4">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Reply</p>
+                <p className="leading-relaxed">{(viewModal.item as Clarification).developerReply}</p>
+              </div>
+            )}
+            {viewModal.type === "pending" && (viewModal.item as PendingItem).developerReply && (
               <div className="rounded-lg border border-border/50 bg-muted/40 p-4">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Developer Reply</p>
-                <p className="leading-relaxed">{selectedViewItem.developerReply}</p>
+                <p className="leading-relaxed">{(viewModal.item as PendingItem).developerReply}</p>
               </div>
             )}
           </div>
         </Modal>
       )}
 
-      {selectedRefineItem && (
-        <Modal title="Refine Question" onClose={() => setSelectedRefineItem(null)}>
+      {/* Refine Modal */}
+      {refineModal && (
+        <Modal title={refineModal.type === "draft" ? "Refine Draft Clarification" : "Refine Question"} onClose={() => setRefineModal(null)}>
           <div className="space-y-4">
-            <Textarea
-              value={refineText}
-              onChange={(event) => setRefineText(event.target.value)}
-              className="min-h-[120px] resize-none border-border/50"
-              placeholder="Refine your question here..."
-            />
+            <Textarea value={refineModal.text} onChange={(e) => setRefineModal({ ...refineModal, text: e.target.value })} className="min-h-[120px] resize-none border-border/50" placeholder="Refine your question here..." />
             <div className="flex justify-end gap-2 pt-2 border-t">
-              <Button variant="outline" className="h-9" onClick={() => setSelectedRefineItem(null)}>
-                Cancel
-              </Button>
-              <Button onClick={handleRefineApply} className="h-9">Apply changes</Button>
+              <Button variant="outline" className="h-9" onClick={() => setRefineModal(null)}>Cancel</Button>
+              <Button className="h-9" onClick={() => {
+                if (refineModal.type === "draft") {
+                  setDraftClarifications(prev => prev.map(d => d.id === refineModal.item.id ? { ...d, refinedQuestion: refineModal.text.trim() } : d))
+                } else {
+                  setPendingItems(prev => prev.map(p => p.id === refineModal.item.id ? { ...p, refinedQuestion: refineModal.text.trim() } : p))
+                }
+                setRefineModal(null)
+              }}>Apply changes</Button>
             </div>
           </div>
         </Modal>
       )}
 
-      {confirmItem && (
-        <Modal
-          title={
-            confirmStep === 1
-              ? "Send this request to developer?"
-              : "Confirm send"
-          }
-          onClose={() => {
-            setConfirmItem(null)
-            setConfirmStep(1)
-          }}
-        >
+      {/* Reply Modal */}
+      {replyModal && (
+        <Modal title="Reply to Clarification" onClose={() => setReplyModal(null)}>
+          <div className="space-y-5 text-sm">
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Question</p>
+              <p className="font-medium leading-relaxed text-base">{replyModal.item.refinedQuestion || replyModal.item.question}</p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Reason</p>
+              <p className="leading-relaxed">{replyModal.item.reason}</p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Your reply</p>
+              <div className="relative">
+                <Textarea value={replyModal.text} onChange={(e) => setReplyModal({ ...replyModal, text: e.target.value })} className={cn("min-h-[140px] resize-none border-border/50", isRewriting && "opacity-60 pointer-events-none")} placeholder="Type your rough draft here..." disabled={isRewriting} />
+                {isRewriting && <div className="absolute inset-0 flex items-center justify-center bg-background/50 rounded-lg"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />Polishing your draft...</div></div>}
+                {replyModal.original && !isRewriting && <Button type="button" variant="ghost" size="sm" onClick={() => setReplyModal({ ...replyModal, text: replyModal.original, original: "" })} className="absolute top-2 right-2 h-7 px-2 text-xs text-muted-foreground hover:text-foreground">Undo</Button>}
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t">
+              <Button onClick={handleMagicRewrite} disabled={!replyModal.text.trim() || isRewriting} className="h-9 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-sm"><Sparkles className="size-4 mr-1.5" />Magic Rewrite</Button>
+              <Button onClick={handleSendReply} className="h-9">Send Reply</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Confirm Modal */}
+      {confirmModal && (
+        <Modal title={confirmModal.step === 1 ? "Send this request to developer?" : "Confirm send"} onClose={() => setConfirmModal(null)}>
           <div className="space-y-5">
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {confirmStep === 1
-                ? "We'll send this question to the developer for input."
-                : "You won't be able to edit after sending."}
-            </p>
+            <p className="text-sm text-muted-foreground leading-relaxed">{confirmModal.step === 1 ? "We'll send this question to the developer for input." : "You won't be able to edit after sending."}</p>
             <div className="flex justify-end gap-2 pt-2 border-t">
-              {confirmStep === 1 ? (
+              {confirmModal.step === 1 ? (
                 <>
-                  <Button variant="outline" className="h-9" onClick={() => setConfirmItem(null)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={() => setConfirmStep(2)} className="h-9">Continue</Button>
+                  <Button variant="outline" className="h-9" onClick={() => setConfirmModal(null)}>Cancel</Button>
+                  <Button className="h-9" onClick={() => setConfirmModal({ ...confirmModal, step: 2 })}>Continue</Button>
                 </>
               ) : (
                 <>
-                  <Button variant="outline" className="h-9" onClick={() => setConfirmStep(1)}>
-                    Back
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      if (confirmItem) {
-                        handleSendToDeveloper(confirmItem)
-                      }
-                      setConfirmItem(null)
-                      setConfirmStep(1)
-                    }}
-                    className="h-9"
-                  >
-                    Send
-                  </Button>
+                  <Button variant="outline" className="h-9" onClick={() => setConfirmModal({ ...confirmModal, step: 1 })}>Back</Button>
+                  <Button className="h-9" onClick={() => {
+                    setPendingItems(prev => prev.map(p => p.id === confirmModal.item.id ? { ...p, status: "waiting_for_developer" } : p))
+                    setTimeout(() => setPendingItems(prev => prev.map(p => p.id === confirmModal.item.id ? { ...p, status: "answered", developerReply: "(Dummy reply) Fastest approach is to reuse existing components and ship an MVP first." } : p)), 2300)
+                    setConfirmModal(null)
+                  }}>Send</Button>
                 </>
               )}
             </div>
