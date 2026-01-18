@@ -6,26 +6,20 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { TabsContent } from "@/components/ui/tabs"
-import { Calendar, FileText, Video, Loader2, Sparkles, Clock, CheckCircle2 } from "lucide-react"
+import { Calendar, FileText, Video, Loader2, Clock, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { toast } from "sonner"
 import { motion } from "framer-motion"
 import type { Update } from "@/types/database"
 
 type UpdatesTabProps = {
   isLoadingUpdates: boolean
   updates: Update[]
-  isDeveloperView: boolean
-  projectId: string
 }
 
 export function UpdatesTab({
   isLoadingUpdates,
   updates,
-  isDeveloperView,
-  projectId,
 }: UpdatesTabProps) {
-  const [isGenerating, setIsGenerating] = useState(false)
   const [activeStep, setActiveStep] = useState(0)
   const stepRefs = useRef<(HTMLDivElement | null)[]>([])
 
@@ -58,21 +52,6 @@ export function UpdatesTab({
     })
   }
 
-  const handleGenerateUpdate = async () => {
-    setIsGenerating(true)
-    try {
-      const response = await fetch(`/api/projects/${projectId}/updates`, { method: 'POST' })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to generate update')
-      toast.success('Update generated successfully!')
-      window.location.reload()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to generate update')
-    } finally {
-      setIsGenerating(false)
-    }
-  }
-
   const containerVariants = {
     hidden: { opacity: 0 },
     show: { opacity: 1, transition: { staggerChildren: 0.1 } }
@@ -100,15 +79,6 @@ export function UpdatesTab({
             </p>
           )}
         </div>
-        {isDeveloperView && (
-          <Button
-            onClick={handleGenerateUpdate}
-            disabled={isGenerating}
-            className="gap-2 shadow-sm hover:shadow-md transition-shadow h-10 px-4"
-          >
-            {isGenerating ? <><Loader2 className="h-4 w-4 animate-spin" />Generating...</> : <><Sparkles className="h-4 w-4" />Generate Update</>}
-          </Button>
-        )}
       </div>
 
       {isLoadingUpdates ? (
