@@ -281,6 +281,7 @@ export default function ReviewerPortal() {
   const [isDeleting, setIsDeleting] = useState<string | null>(null)
   const [isDeletingProject, setIsDeletingProject] = useState(false)
   const [deleteProjectDialogOpen, setDeleteProjectDialogOpen] = useState(false)
+  const [isProjectOwner, setIsProjectOwner] = useState(false)
   
   useEffect(() => {
     async function fetchData() {
@@ -821,8 +822,6 @@ export default function ReviewerPortal() {
             <UpdatesTab
               isLoadingUpdates={isLoadingUpdates}
               updates={updates}
-              isDeveloperView={isDeveloperView}
-              projectId={projectId}
             />
 
           {/* AI Assistant Chat */}
