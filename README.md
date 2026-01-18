@@ -5,7 +5,7 @@
 <h1 align="center">TeamSync</h1>
 
 <p align="center">
-  <strong>AI-Powered Project Update Videos from GitHub Activity</strong>
+  <strong>AI-Powered Client Portal with Automation for Development Teams</strong>
 </p>
 
 <p align="center">
