@@ -23,6 +23,7 @@ export interface Project {
   status: "active" | "paused" | "completed"
   progress: number // 0-100
   webhook_secret?: string
+  thumbnail_url?: string
 }
 
 export interface ProjectUser {

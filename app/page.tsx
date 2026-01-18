@@ -473,7 +473,7 @@ export default function ProjectsDashboard() {
               name: project.name,
               description: project.summary || undefined,
               githubRepo: project.github_url || undefined,
-              thumbnail: null,
+              thumbnail: project.thumbnail_url || null,
               progress: project.progress || 0,
               status: project.status,
               updatesCount: count || 0,
@@ -591,11 +591,8 @@ export default function ProjectsDashboard() {
                 {userRole}
               </span>
             )}
-            <Button variant="ghost" size="icon" className="relative">
+            <Button variant="ghost" size="icon">
               <Bell className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-accent text-[10px] font-bold flex items-center justify-center text-accent-foreground">
-                3
-              </span>
             </Button>
             <UserProfileDropdown />
           </div>
@@ -612,12 +609,13 @@ export default function ProjectsDashboard() {
             </p>
           </div>
           {userRole === "developer" && (
-            <Button asChild className="whitespace-nowrap">
-              <Link href="/new" className="flex items-center gap-3">
-                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-emerald-950">
-                  <Plus className="h-4 w-4" />
-                </span>
-                <span className="font-semibold">New Project</span>
+            <Button 
+              asChild 
+              className="whitespace-nowrap !bg-emerald-500 hover:!bg-emerald-600 !text-white shadow-md hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5"
+            >
+              <Link href="/new" className="flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                <span className="font-medium">New Project</span>
               </Link>
             </Button>
           )}
